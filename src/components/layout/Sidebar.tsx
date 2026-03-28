@@ -18,6 +18,7 @@ import {
   Settings,
   PanelLeftClose,
   PanelLeftOpen,
+  HeartPulse,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/store"
@@ -49,7 +50,7 @@ export function Sidebar() {
     {
       title: "Main",
       items: [
-        { label: "Dashboard", href: "/", icon: LayoutDashboard },
+        { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
         { label: "Projects", href: "/projects", icon: FolderKanban },
         { label: "Tasks", href: "/tasks", icon: CheckSquare },
         { label: "Agents", href: "/agents", icon: Bot },
@@ -61,8 +62,8 @@ export function Sidebar() {
       title: "Content",
       items: [
         { label: "Viral Reel", href: "/viral-reel", icon: Video },
-        { label: "HolisticDrBright SEO", href: "/holistic-seo", icon: Leaf },
-        { label: "DSpiked SEO", href: "/dspiked-seo", icon: Zap },
+        { label: "HolisticDrBright SEO", href: "/seo/holistic-dr-bright", icon: Leaf },
+        { label: "DSpiked SEO", href: "/seo/dspiked", icon: Zap },
       ],
     },
     {
@@ -70,12 +71,13 @@ export function Sidebar() {
       items: [
         { label: "VA Tasks", href: "/va-tasks", icon: Users },
         { label: "ML Ops", href: "/ml-ops", icon: Brain },
-        { label: "Notion Sync", href: "/notion-sync", icon: RefreshCw },
+        { label: "Notion Sync", href: "/notion", icon: RefreshCw },
       ],
     },
     {
       title: "System",
       items: [
+        { label: "System Health", href: "/system-health", icon: HeartPulse },
         { label: "Settings", href: "/settings", icon: Settings },
       ],
     },

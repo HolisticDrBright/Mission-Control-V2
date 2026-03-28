@@ -6,17 +6,19 @@ import { useStore } from "@/store"
 
 const pathTitles: Record<string, string> = {
   "/": "Dashboard",
+  "/dashboard": "Dashboard",
   "/projects": "Projects",
   "/tasks": "Tasks",
   "/agents": "Agents",
   "/scheduler": "Scheduler",
   "/inbox": "Inbox",
   "/viral-reel": "Viral Reel",
-  "/holistic-seo": "HolisticDrBright SEO",
-  "/dspiked-seo": "DSpiked SEO",
+  "/seo/holistic-dr-bright": "HolisticDrBright SEO",
+  "/seo/dspiked": "DSpiked SEO",
   "/va-tasks": "VA Tasks",
   "/ml-ops": "ML Ops",
-  "/notion-sync": "Notion Sync",
+  "/notion": "Notion Sync",
+  "/system-health": "System Health",
   "/settings": "Settings",
 }
 
