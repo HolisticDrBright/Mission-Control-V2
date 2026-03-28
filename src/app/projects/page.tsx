@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useProjects, useTasks, useAgents } from '@/lib/hooks/use-data'
 import Link from 'next/link'
 import { Plus, FolderKanban, Bot, Clock } from 'lucide-react'
 import { useStore } from '@/store'
@@ -17,6 +18,9 @@ const TYPE_BADGES: Record<string, { label: string; color: string }> = {
 }
 
 export default function ProjectsPage() {
+  useProjects()
+  useTasks()
+  useAgents()
   const projects = useStore((s) => s.projects)
   const tasks = useStore((s) => s.tasks)
   const agents = useStore((s) => s.agents)

@@ -2,6 +2,7 @@
 
 import { use } from 'react'
 import { useState } from 'react'
+import { useProjects, useTasks, useAgents } from '@/lib/hooks/use-data'
 import { ArrowLeft, Bot, FolderKanban, DollarSign, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { useStore } from '@/store'
@@ -14,6 +15,9 @@ type Params = Promise<{ slug: string }>
 const TABS = ['Overview', 'Tasks', 'Agents', 'Runs'] as const
 
 export default function ProjectDetailPage({ params }: { params: Params }) {
+  useProjects()
+  useTasks()
+  useAgents()
   const { slug } = use(params)
   const projects = useStore((s) => s.projects)
   const tasks = useStore((s) => s.tasks)

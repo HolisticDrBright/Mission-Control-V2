@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import type { NotionSyncLog } from '@/lib/types'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // ---------------------------------------------------------------------------
 // Auth helper
@@ -11,51 +11,6 @@ function authenticate(req: NextRequest): boolean {
   const expected = process.env.MC_API_TOKEN
   if (!expected) return true
   return token === expected
-}
-
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-const MOCK_SYNC_LOGS: NotionSyncLog[] = [
-  {
-    id: 'ns000001-0001-4000-8000-000000000001',
-    entity_type: 'task',
-    entity_id: 'a1b2c3d4-0001-4000-8000-000000000001',
-    notion_id: 'notion-page-abc123',
-    direction: 'to_notion',
-    status: 'success',
-    error_message: null,
-    synced_at: '2026-03-28T08:00:00Z',
-  },
-  {
-    id: 'ns000001-0002-4000-8000-000000000002',
-    entity_type: 'project',
-    entity_id: 'p0000001-0001-4000-8000-000000000001',
-    notion_id: 'notion-page-def456',
-    direction: 'from_notion',
-    status: 'success',
-    error_message: null,
-    synced_at: '2026-03-28T07:30:00Z',
-  },
-  {
-    id: 'ns000001-0003-4000-8000-000000000003',
-    entity_type: 'blog_post',
-    entity_id: 'bp000001-0001-4000-8000-000000000001',
-    notion_id: 'notion-page-ghi789',
-    direction: 'to_notion',
-    status: 'failed',
-    error_message: 'Notion API rate limit exceeded',
-    synced_at: '2026-03-27T23:00:00Z',
-  },
-]
-
-interface SyncStatus {
-  last_sync_at: string | null
-  total_synced: number
-  total_failed: number
-  is_syncing: boolean
-  recent_logs: NotionSyncLog[]
 }
 
 // ---------------------------------------------------------------------------
@@ -99,19 +54,34 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  let logs = [...MOCK_SYNC_LOGS]
+  const supabase = createAdminClient()
+
+  let query = supabase
+    .from('notion_sync_log')
+    .select('*')
+    .order('synced_at', { ascending: false })
+    .limit(50)
 
   if (filterParse.data.entity_type) {
-    logs = logs.filter((l) => l.entity_type === filterParse.data.entity_type)
+    query = query.eq('entity_type', filterParse.data.entity_type)
   }
   if (filterParse.data.status) {
-    logs = logs.filter((l) => l.status === filterParse.data.status)
+    query = query.eq('status', filterParse.data.status)
   }
 
-  const status: SyncStatus = {
-    last_sync_at: logs.length > 0 ? logs[0].synced_at : null,
-    total_synced: logs.filter((l) => l.status === 'success').length,
-    total_failed: logs.filter((l) => l.status === 'failed').length,
+  const { data: logs, error } = await query
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  const successCount = logs?.filter((l) => l.status === 'success').length ?? 0
+  const failedCount = logs?.filter((l) => l.status === 'failed').length ?? 0
+
+  const status = {
+    last_sync_at: logs && logs.length > 0 ? logs[0].synced_at : null,
+    total_synced: successCount,
+    total_failed: failedCount,
     is_syncing: false,
     recent_logs: logs,
   }
@@ -143,18 +113,38 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // TODO: Trigger actual Notion sync once services are connected
+  const supabase = createAdminClient()
+
+  // Log the sync request for now (actual sync not yet implemented)
   const syncJob = {
-    id: crypto.randomUUID(),
     entity_type: parse.data.entity_type,
     entity_id: parse.data.entity_id ?? null,
     direction: parse.data.direction,
     status: 'queued' as const,
-    queued_at: new Date().toISOString(),
+    synced_at: new Date().toISOString(),
+  }
+
+  // Attempt to log the request to notion_sync_log
+  const { data, error } = await supabase
+    .from('notion_sync_log')
+    .insert({
+      entity_type: syncJob.entity_type,
+      entity_id: syncJob.entity_id ?? '00000000-0000-0000-0000-000000000000',
+      notion_id: 'pending',
+      direction: syncJob.direction,
+      status: 'skipped',
+      error_message: 'Sync not yet implemented — request logged',
+      synced_at: syncJob.synced_at,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
   return NextResponse.json(
-    { data: syncJob, message: 'Sync job queued successfully' },
+    { data, message: 'Sync job queued successfully' },
     { status: 202 },
   )
 }

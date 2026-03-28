@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AgentTaskLogCreateSchema } from '@/lib/validation'
-import type { AgentTaskLog, PatternAnalysisLog, PromptVersionRegistry } from '@/lib/types'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // ---------------------------------------------------------------------------
 // Auth helper
@@ -13,126 +13,6 @@ function authenticate(req: NextRequest): boolean {
   if (!expected) return true // no token configured = open (dev mode)
   return token === expected
 }
-
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-const MOCK_AGENT_TASK_LOGS: AgentTaskLog[] = [
-  {
-    id: 'atl00001-0001-4000-8000-000000000001',
-    task_id: 'a1b2c3d4-0001-4000-8000-000000000001',
-    run_timestamp: '2026-03-28T08:30:00Z',
-    agent_name: 'DevOps Agent',
-    prompt_version: 'v1.2.0',
-    model_used: 'claude-sonnet-4-20250514',
-    input_tokens: 1250,
-    output_tokens: 830,
-    cost_usd: 0.012,
-    execution_time_ms: 4500,
-    task_type: 'ops',
-    input_preview: 'Set up GitHub Actions workflow for CI/CD...',
-    output_preview: 'Created .github/workflows/ci.yml with test and deploy steps...',
-    output_word_count: 420,
-    metadata: { retry_count: 0 },
-    outcome_score: 8.5,
-    outcome_data: { tests_passed: true, deploy_success: true },
-    outcome_collected_at: '2026-03-28T08:35:00Z',
-    outcome_source: 'auto',
-    ab_test_id: null,
-    ab_variant: null,
-    pipeline_id: null,
-    parent_task_id: null,
-    pipeline_position: null,
-    pipeline_final_score: null,
-    created_at: '2026-03-28T08:30:00Z',
-  },
-  {
-    id: 'atl00001-0002-4000-8000-000000000002',
-    task_id: 'a1b2c3d4-0002-4000-8000-000000000002',
-    run_timestamp: '2026-03-27T14:00:00Z',
-    agent_name: 'Content Writer',
-    prompt_version: 'v2.0.1',
-    model_used: 'claude-sonnet-4-20250514',
-    input_tokens: 980,
-    output_tokens: 2100,
-    cost_usd: 0.025,
-    execution_time_ms: 8200,
-    task_type: 'content',
-    input_preview: 'Research competitor SEO strategies for health niche...',
-    output_preview: 'Competitive analysis report: Top 5 competitors identified...',
-    output_word_count: 1050,
-    metadata: null,
-    outcome_score: 7.2,
-    outcome_data: null,
-    outcome_collected_at: '2026-03-27T15:00:00Z',
-    outcome_source: 'manual',
-    ab_test_id: 'ab-prompt-v2',
-    ab_variant: 'B',
-    pipeline_id: null,
-    parent_task_id: null,
-    pipeline_position: null,
-    pipeline_final_score: null,
-    created_at: '2026-03-27T14:00:00Z',
-  },
-]
-
-const MOCK_PATTERN_ANALYSIS_LOGS: PatternAnalysisLog[] = [
-  {
-    id: 'pal00001-0001-4000-8000-000000000001',
-    analysis_id: 'analysis-2026-03-28-001',
-    analysis_timestamp: '2026-03-28T06:00:00Z',
-    agent_name: 'DevOps Agent',
-    records_analyzed: 47,
-    date_range_start: '2026-03-01T00:00:00Z',
-    date_range_end: '2026-03-28T00:00:00Z',
-    avg_outcome_score: 8.2,
-    score_delta: 0.4,
-    avg_cost_per_run: 0.015,
-    cost_delta: -0.002,
-    overall_health_score: 85,
-    optimization_warranted: false,
-    confidence_level: 0.92,
-    executive_summary: 'DevOps Agent performing well. Scores trending up, costs trending down.',
-    full_report: null,
-    created_at: '2026-03-28T06:00:00Z',
-  },
-]
-
-const MOCK_PROMPT_VERSIONS: PromptVersionRegistry[] = [
-  {
-    id: 'pv000001-0001-4000-8000-000000000001',
-    agent_name: 'DevOps Agent',
-    version: 'v1.2.0',
-    system_prompt: 'You are a DevOps specialist agent. Handle CI/CD, infrastructure...',
-    created_at: '2026-03-20T08:00:00Z',
-    created_by: 'system',
-    change_log: 'Added Docker deployment instructions',
-    change_log_detail: null,
-    is_active: true,
-    avg_score: 8.2,
-    run_count: 47,
-    approval_status: 'approved',
-    approval_tier: 1,
-    approved_at: '2026-03-20T08:30:00Z',
-  },
-  {
-    id: 'pv000001-0002-4000-8000-000000000002',
-    agent_name: 'Content Writer',
-    version: 'v2.0.1',
-    system_prompt: 'You are an SEO content writer. Produce high-quality blog posts...',
-    created_at: '2026-03-22T10:00:00Z',
-    created_by: 'system',
-    change_log: 'Improved keyword density instructions',
-    change_log_detail: null,
-    is_active: true,
-    avg_score: 7.5,
-    run_count: 112,
-    approval_status: 'approved',
-    approval_tier: 1,
-    approved_at: '2026-03-22T10:15:00Z',
-  },
-]
 
 // ---------------------------------------------------------------------------
 // Query filter schema
@@ -166,39 +46,69 @@ export async function GET(request: NextRequest) {
   }
 
   const { agent_name, view = 'all' } = filterParse.data
+  const supabase = createAdminClient()
 
-  let taskLogs = [...MOCK_AGENT_TASK_LOGS]
-  let patterns = [...MOCK_PATTERN_ANALYSIS_LOGS]
-  let prompts = [...MOCK_PROMPT_VERSIONS]
+  if (view === 'task_logs' || view === 'all') {
+    let taskLogsQuery = supabase.from('agent_task_log').select('*', { count: 'exact' }).order('run_timestamp', { ascending: false })
+    if (agent_name) taskLogsQuery = taskLogsQuery.eq('agent_name', agent_name)
 
-  if (agent_name) {
-    taskLogs = taskLogs.filter((l) => l.agent_name === agent_name)
-    patterns = patterns.filter((p) => p.agent_name === agent_name)
-    prompts = prompts.filter((p) => p.agent_name === agent_name)
+    if (view === 'task_logs') {
+      const { data, count, error } = await taskLogsQuery
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ data: { agent_task_logs: data }, count })
+    }
+
+    // view === 'all' — query all three tables in parallel
+    let patternsQuery = supabase.from('pattern_analysis_log').select('*', { count: 'exact' }).order('analysis_timestamp', { ascending: false })
+    let promptsQuery = supabase.from('prompt_version_registry').select('*', { count: 'exact' }).order('created_at', { ascending: false })
+
+    if (agent_name) {
+      patternsQuery = patternsQuery.eq('agent_name', agent_name)
+      promptsQuery = promptsQuery.eq('agent_name', agent_name)
+    }
+
+    const [taskLogsResult, patternsResult, promptsResult] = await Promise.all([
+      taskLogsQuery,
+      patternsQuery,
+      promptsQuery,
+    ])
+
+    if (taskLogsResult.error) return NextResponse.json({ error: taskLogsResult.error.message }, { status: 500 })
+    if (patternsResult.error) return NextResponse.json({ error: patternsResult.error.message }, { status: 500 })
+    if (promptsResult.error) return NextResponse.json({ error: promptsResult.error.message }, { status: 500 })
+
+    return NextResponse.json({
+      data: {
+        agent_task_logs: taskLogsResult.data,
+        pattern_analysis_logs: patternsResult.data,
+        prompt_versions: promptsResult.data,
+      },
+      counts: {
+        agent_task_logs: taskLogsResult.count,
+        pattern_analysis_logs: patternsResult.count,
+        prompt_versions: promptsResult.count,
+      },
+    })
   }
 
-  if (view === 'task_logs') {
-    return NextResponse.json({ data: { agent_task_logs: taskLogs }, count: taskLogs.length })
-  }
   if (view === 'patterns') {
-    return NextResponse.json({ data: { pattern_analysis_logs: patterns }, count: patterns.length })
-  }
-  if (view === 'prompts') {
-    return NextResponse.json({ data: { prompt_versions: prompts }, count: prompts.length })
+    let query = supabase.from('pattern_analysis_log').select('*', { count: 'exact' }).order('analysis_timestamp', { ascending: false })
+    if (agent_name) query = query.eq('agent_name', agent_name)
+    const { data, count, error } = await query
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ data: { pattern_analysis_logs: data }, count })
   }
 
-  return NextResponse.json({
-    data: {
-      agent_task_logs: taskLogs,
-      pattern_analysis_logs: patterns,
-      prompt_versions: prompts,
-    },
-    counts: {
-      agent_task_logs: taskLogs.length,
-      pattern_analysis_logs: patterns.length,
-      prompt_versions: prompts.length,
-    },
-  })
+  if (view === 'prompts') {
+    let query = supabase.from('prompt_version_registry').select('*', { count: 'exact' }).order('created_at', { ascending: false })
+    if (agent_name) query = query.eq('agent_name', agent_name)
+    const { data, count, error } = await query
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ data: { prompt_versions: data }, count })
+  }
+
+  // Fallback (should not reach here)
+  return NextResponse.json({ data: {}, counts: {} })
 }
 
 // ---------------------------------------------------------------------------
@@ -225,11 +135,17 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const newLog: AgentTaskLog = {
-    id: crypto.randomUUID(),
-    ...parse.data,
-    created_at: new Date().toISOString(),
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from('agent_task_log')
+    .insert(parse.data)
+    .select()
+    .single()
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ data: newLog }, { status: 201 })
+  return NextResponse.json({ data }, { status: 201 })
 }

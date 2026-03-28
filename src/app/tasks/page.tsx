@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { useTasks, useProjects, useAgents } from '@/lib/hooks/use-data'
 import {
   DndContext,
   DragOverlay,
@@ -317,6 +318,9 @@ function BrainDump() {
 }
 
 export default function TasksPage() {
+  useTasks()
+  useProjects()
+  useAgents()
   const [view, setView] = useState<'kanban' | 'eisenhower'>('kanban')
 
   return (

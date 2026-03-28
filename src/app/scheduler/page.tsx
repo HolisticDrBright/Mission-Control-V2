@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useScheduledJobs } from '@/lib/hooks/use-data'
 import {
   Calendar,
   Plus,
@@ -25,6 +26,7 @@ const JOB_TYPE_COLORS: Record<string, string> = {
 }
 
 export default function SchedulerPage() {
+  useScheduledJobs()
   const jobs = useStore((s) => s.scheduledJobs)
 
   return (

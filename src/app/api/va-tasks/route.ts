@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { VATaskCreateSchema } from '@/lib/validation'
-import type { VATask } from '@/lib/types'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // ---------------------------------------------------------------------------
 // Auth helper
@@ -14,47 +15,13 @@ function authenticate(req: NextRequest): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Mock data
+// Query filter schema
 // ---------------------------------------------------------------------------
 
-const MOCK_VA_TASKS: VATask[] = [
-  {
-    id: 'va000001-0001-4000-8000-000000000001',
-    title: 'Schedule social media posts for next week',
-    description: 'Prepare and schedule 7 Instagram posts and 5 Twitter posts.',
-    project_id: 'p0000001-0002-4000-8000-000000000002',
-    assigned_to: 'maria@example.com',
-    priority: 'high',
-    status: 'in_progress',
-    due_date: '2026-03-30T17:00:00Z',
-    recurring: true,
-    recurrence_rule: 'FREQ=WEEKLY;BYDAY=FR',
-    attachments: null,
-    notes: 'Use the new brand guidelines.',
-    notion_task_id: null,
-    completed_at: null,
-    created_at: '2026-03-25T08:00:00Z',
-    updated_at: '2026-03-28T09:00:00Z',
-  },
-  {
-    id: 'va000001-0002-4000-8000-000000000002',
-    title: 'Respond to customer support emails',
-    description: null,
-    project_id: null,
-    assigned_to: 'maria@example.com',
-    priority: 'medium',
-    status: 'pending',
-    due_date: '2026-03-28T17:00:00Z',
-    recurring: true,
-    recurrence_rule: 'FREQ=DAILY',
-    attachments: null,
-    notes: null,
-    notion_task_id: null,
-    completed_at: null,
-    created_at: '2026-03-20T08:00:00Z',
-    updated_at: '2026-03-28T08:00:00Z',
-  },
-]
+const VATaskFilterSchema = z.object({
+  status: z.string().optional(),
+  project_id: z.string().uuid().optional(),
+})
 
 // ---------------------------------------------------------------------------
 // GET /api/va-tasks
@@ -65,7 +32,37 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  return NextResponse.json({ data: MOCK_VA_TASKS, count: MOCK_VA_TASKS.length })
+  const { searchParams } = request.nextUrl
+  const filterParse = VATaskFilterSchema.safeParse({
+    status: searchParams.get('status') ?? undefined,
+    project_id: searchParams.get('project_id') ?? undefined,
+  })
+
+  if (!filterParse.success) {
+    return NextResponse.json(
+      { error: 'Invalid query parameters', details: filterParse.error.flatten() },
+      { status: 400 },
+    )
+  }
+
+  const supabase = createAdminClient()
+
+  let query = supabase.from('va_tasks').select('*', { count: 'exact' })
+
+  if (filterParse.data.status) {
+    query = query.eq('status', filterParse.data.status)
+  }
+  if (filterParse.data.project_id) {
+    query = query.eq('project_id', filterParse.data.project_id)
+  }
+
+  const { data, count, error } = await query
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ data, count })
 }
 
 // ---------------------------------------------------------------------------
@@ -92,13 +89,17 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const now = new Date().toISOString()
-  const newTask: VATask = {
-    id: crypto.randomUUID(),
-    ...parse.data,
-    created_at: now,
-    updated_at: now,
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from('va_tasks')
+    .insert(parse.data)
+    .select()
+    .single()
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ data: newTask }, { status: 201 })
+  return NextResponse.json({ data }, { status: 201 })
 }

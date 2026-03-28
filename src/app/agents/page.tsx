@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useAgents, useTasks } from '@/lib/hooks/use-data'
 import {
   Bot,
   Plus,
@@ -10,8 +11,11 @@ import {
   Activity,
   Clock,
   BookOpen,
+  Wifi,
+  WifiOff,
 } from 'lucide-react'
 import { useStore } from '@/store'
+import { useOpenClawGateway } from '@/lib/hooks/use-openclaw'
 import GlassCard from '@/components/ui/GlassCard'
 import StatusPill from '@/components/ui/StatusPill'
 import AgentAvatar from '@/components/ui/AgentAvatar'
@@ -28,9 +32,12 @@ const ROLE_COLORS: Record<string, string> = {
 }
 
 export default function AgentsPage() {
+  useAgents()
+  useTasks()
   const agents = useStore((s) => s.agents)
   const tasks = useStore((s) => s.tasks)
   const [showSkills, setShowSkills] = useState(false)
+  const { isConnected } = useOpenClawGateway()
 
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
@@ -59,8 +66,19 @@ export default function AgentsPage() {
             Skills Library
           </button>
           <button className="glass-button text-sm flex items-center gap-2">
+            {isConnected ? (
+              <Wifi size={14} style={{ color: 'var(--accent-emerald)' }} />
+            ) : (
+              <WifiOff size={14} style={{ color: 'var(--text-muted)' }} />
+            )}
             <Download size={14} />
             Import from OpenClaw
+            {isConnected && (
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ background: 'var(--accent-emerald)' }}
+              />
+            )}
           </button>
           <button className="glass-button-primary glass-button text-sm flex items-center gap-2">
             <Plus size={14} />

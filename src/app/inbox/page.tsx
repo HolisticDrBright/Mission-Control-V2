@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useInboxMessages, useAgents } from '@/lib/hooks/use-data'
 import {
   Mail,
   MailOpen,
@@ -29,6 +30,8 @@ const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; labe
 const FILTER_OPTIONS = ['all', 'unread', 'action_required'] as const
 
 export default function InboxPage() {
+  useInboxMessages()
+  useAgents()
   const messages = useStore((s) => s.inboxMessages)
   const agents = useStore((s) => s.agents)
   const markRead = useStore((s) => s.markRead)
