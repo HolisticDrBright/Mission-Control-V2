@@ -19,6 +19,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   HeartPulse,
+  Grab,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/store"
@@ -64,6 +65,12 @@ export function Sidebar() {
         { label: "Viral Reel", href: "/viral-reel", icon: Video },
         { label: "HolisticDrBright SEO", href: "/seo/holistic-dr-bright", icon: Leaf },
         { label: "DSpiked SEO", href: "/seo/dspiked", icon: Zap },
+      ],
+    },
+    {
+      title: "Revenue",
+      items: [
+        { label: "CashClaw", href: "/cashclaw", icon: Grab },
       ],
     },
     {
