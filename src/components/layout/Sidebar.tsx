@@ -20,6 +20,8 @@ import {
   PanelLeftOpen,
   HeartPulse,
   Grab,
+  Search,
+  Target,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/store"
@@ -57,6 +59,13 @@ export function Sidebar() {
         { label: "Agents", href: "/agents", icon: Bot },
         { label: "Scheduler", href: "/scheduler", icon: Calendar },
         { label: "Inbox", href: "/inbox", icon: Mail, badge: unreadCount || undefined },
+      ],
+    },
+    {
+      title: "Automation",
+      items: [
+        { label: "SEO Automation", href: "/seo-automation", icon: Search },
+        { label: "Cold Outreach", href: "/outreach", icon: Target },
       ],
     },
     {

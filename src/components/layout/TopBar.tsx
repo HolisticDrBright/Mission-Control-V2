@@ -18,6 +18,8 @@ const pathTitles: Record<string, string> = {
   "/va-tasks": "VA Tasks",
   "/ml-ops": "ML Ops",
   "/notion": "Notion Sync",
+  "/seo-automation": "SEO Automation",
+  "/outreach": "Cold Outreach",
   "/cashclaw": "CashClaw",
   "/system-health": "System Health",
   "/settings": "Settings",

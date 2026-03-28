@@ -284,6 +284,152 @@ function QuickActions() {
   )
 }
 
+function MissionControlSystems() {
+  const [mcData, setMcData] = useState<{
+    seo: Record<string, unknown> | null
+    outreach: Record<string, unknown> | null
+    alerts: Array<{ id: string; system: string; severity: string; issue: string; timestamp: string }>
+    quick_stats: { articles_today: number; signals_today: number; hot_leads: number; pending_replies: number }
+  } | null>(null)
+  const [budget, setBudget] = useState<{
+    seo: number; outreach: number; cron: number; total: number; remaining: number; budget: number; percent_used: number
+  } | null>(null)
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/mission-state').then(r => r.ok ? r.json() : null),
+      fetch('/api/mission-state?section=budget').then(r => r.ok ? r.json() : null),
+    ]).then(([stateRes, budgetRes]) => {
+      if (stateRes?.data) setMcData(stateRes.data)
+      if (budgetRes?.data) setBudget(budgetRes.data)
+    }).catch(() => {})
+  }, [])
+
+  const stats = mcData?.quick_stats
+  const alerts = mcData?.alerts || []
+  const unackedAlerts = alerts.filter(a => a.severity === 'critical' || a.severity === 'warning')
+
+  return (
+    <div className="space-y-4">
+      {/* Alert Banner */}
+      {unackedAlerts.length > 0 && (
+        <GlassCard className="p-4 !border-[rgba(244,63,94,0.3)]" hover={false}>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'rgba(244,63,94,0.15)', color: 'var(--accent-rose)' }}>
+              <DollarSign size={16} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium" style={{ color: 'var(--accent-rose)' }}>
+                {unackedAlerts.length} Active Alert{unackedAlerts.length > 1 ? 's' : ''}
+              </p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {unackedAlerts[0]?.issue}
+              </p>
+            </div>
+          </div>
+        </GlassCard>
+      )}
+
+      <h3 className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+        Autonomous Systems
+      </h3>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* SEO System */}
+        <GlassCard className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+                style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--accent-emerald)' }}>
+                <TrendingUp size={14} />
+              </div>
+              <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>SEO</span>
+            </div>
+            <div className="w-2 h-2 rounded-full status-pulse" style={{ background: 'var(--status-running)' }} />
+          </div>
+          <p className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+            {stats?.articles_today ?? 0}
+          </p>
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>articles today</p>
+        </GlassCard>
+
+        {/* Outreach System */}
+        <GlassCard className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+                style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--accent-blue)' }}>
+                <ListChecks size={14} />
+              </div>
+              <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Outreach</span>
+            </div>
+            <div className="w-2 h-2 rounded-full status-pulse" style={{ background: 'var(--status-running)' }} />
+          </div>
+          <div className="flex items-center gap-3">
+            <div>
+              <p className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+                {stats?.signals_today ?? 0}
+              </p>
+              <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>signals today</p>
+            </div>
+            {(stats?.hot_leads ?? 0) > 0 && (
+              <div className="px-2 py-1 rounded-lg text-xs font-medium"
+                style={{ background: 'rgba(244,63,94,0.15)', color: 'var(--accent-rose)' }}>
+                {stats?.hot_leads} HOT
+              </div>
+            )}
+          </div>
+        </GlassCard>
+
+        {/* Budget */}
+        <GlassCard className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+                style={{ background: 'rgba(245,158,11,0.15)', color: 'var(--accent-amber)' }}>
+                <DollarSign size={14} />
+              </div>
+              <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Budget</span>
+            </div>
+          </div>
+          <p className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+            ${budget?.total?.toFixed(2) ?? '0.00'}
+          </p>
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            of ${budget?.budget?.toFixed(2) ?? '15.00'} daily ({budget?.percent_used ?? 0}%)
+          </p>
+          {budget && (
+            <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+              <div className="h-full rounded-full transition-all" style={{
+                width: `${Math.min(budget.percent_used, 100)}%`,
+                background: budget.percent_used > 80 ? 'var(--accent-rose)' : budget.percent_used > 60 ? 'var(--accent-amber)' : 'var(--accent-emerald)',
+              }} />
+            </div>
+          )}
+        </GlassCard>
+
+        {/* Replies Pending */}
+        <GlassCard className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+                style={{ background: 'rgba(139,92,246,0.15)', color: 'var(--accent-purple)' }}>
+                <Bot size={14} />
+              </div>
+              <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Replies</span>
+            </div>
+          </div>
+          <p className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+            {stats?.pending_replies ?? 0}
+          </p>
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>pending action</p>
+        </GlassCard>
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   useDashboardData()
   const agents = useStore((s) => s.agents)
@@ -340,6 +486,9 @@ export default function DashboardPage() {
         <UpcomingJobs />
         <RecentCompletions />
       </div>
+
+      {/* Mission Control Systems */}
+      <MissionControlSystems />
 
       {/* Quick Actions */}
       <div>
