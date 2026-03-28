@@ -2,17 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { BlogPostCreateSchema } from '@/lib/validation'
 import { createAdminClient } from '@/lib/supabase/admin'
-
-// ---------------------------------------------------------------------------
-// Auth helper
-// ---------------------------------------------------------------------------
-
-function authenticate(req: NextRequest): boolean {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '')
-  const expected = process.env.MC_API_TOKEN
-  if (!expected) return true
-  return token === expected
-}
+import { authenticate } from '@/lib/api/auth'
 
 // ---------------------------------------------------------------------------
 // Query filter schema

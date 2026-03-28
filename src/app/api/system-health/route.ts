@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { execSync } from 'child_process'
 import os from 'os'
-
-function authenticate(req: NextRequest): boolean {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '')
-  const expected = process.env.MC_API_TOKEN
-  if (!expected) return true
-  return token === expected
-}
+import { authenticate } from '@/lib/api/auth'
 
 function getCpuUsage(): { model: string; cores: number; usage_percent: number; per_core: number[] } {
   const cpus = os.cpus()

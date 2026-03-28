@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-
-// ---------------------------------------------------------------------------
-// Auth helper
-// ---------------------------------------------------------------------------
-
-function authenticate(req: NextRequest): boolean {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '')
-  const expected = process.env.MC_API_TOKEN
-  if (!expected) return true
-  return token === expected
-}
+import { authenticate } from '@/lib/api/auth'
 
 // ---------------------------------------------------------------------------
 // GET /api/cowork  (read workspace context)
