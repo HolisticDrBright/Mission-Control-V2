@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useDashboardData } from '@/lib/hooks/use-data'
 import {
   Bot,
   ListChecks,
@@ -284,6 +285,7 @@ function QuickActions() {
 }
 
 export default function DashboardPage() {
+  useDashboardData()
   const agents = useStore((s) => s.agents)
   const tasks = useStore((s) => s.tasks)
   const jobs = useStore((s) => s.scheduledJobs)

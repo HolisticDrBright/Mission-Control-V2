@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { TaskCreateSchema, KanbanStatusSchema, QuadrantSchema } from '@/lib/validation'
-import type { Task } from '@/lib/types'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // ---------------------------------------------------------------------------
 // Auth helper
@@ -13,90 +13,6 @@ function authenticate(req: NextRequest): boolean {
   if (!expected) return true // no token configured = open (dev mode)
   return token === expected
 }
-
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-const MOCK_TASKS: Task[] = [
-  {
-    id: 'a1b2c3d4-0001-4000-8000-000000000001',
-    title: 'Set up CI/CD pipeline',
-    description: 'Configure GitHub Actions for automated testing and deployment',
-    type: 'ops',
-    project_id: 'p0000001-0001-4000-8000-000000000001',
-    agent_id: 'ag000001-0001-4000-8000-000000000001',
-    collaborator_agent_ids: null,
-    kanban_status: 'in_progress',
-    quadrant: 'do',
-    priority: 'high',
-    ai_plan: null,
-    acceptance_criteria: ['All tests pass', 'Auto-deploy to staging on merge'],
-    deliverables: null,
-    subtasks: [
-      { id: 'sub-001', title: 'Write workflow YAML', done: true },
-      { id: 'sub-002', title: 'Add test step', done: false },
-    ],
-    image_urls: null,
-    started_at: '2026-03-25T10:00:00Z',
-    completed_at: null,
-    estimated_minutes: 120,
-    actual_minutes: null,
-    depends_on_task_ids: null,
-    blocks_task_ids: null,
-    notion_task_id: null,
-    notion_last_synced_at: null,
-    session_count: 2,
-    last_session_cost_usd: 0.03,
-    total_cost_usd: 0.05,
-    outcome_score: null,
-    failure_count: 0,
-    loop_detected: false,
-    pipeline_id: null,
-    pipeline_position: null,
-    notes: null,
-    activity_log: null,
-    created_at: '2026-03-24T08:00:00Z',
-    updated_at: '2026-03-27T14:30:00Z',
-  },
-  {
-    id: 'a1b2c3d4-0002-4000-8000-000000000002',
-    title: 'Research competitor SEO strategy',
-    description: null,
-    type: 'research',
-    project_id: 'p0000001-0002-4000-8000-000000000002',
-    agent_id: null,
-    collaborator_agent_ids: null,
-    kanban_status: 'backlog',
-    quadrant: 'schedule',
-    priority: 'medium',
-    ai_plan: null,
-    acceptance_criteria: null,
-    deliverables: null,
-    subtasks: null,
-    image_urls: null,
-    started_at: null,
-    completed_at: null,
-    estimated_minutes: 60,
-    actual_minutes: null,
-    depends_on_task_ids: null,
-    blocks_task_ids: null,
-    notion_task_id: null,
-    notion_last_synced_at: null,
-    session_count: 0,
-    last_session_cost_usd: null,
-    total_cost_usd: 0,
-    outcome_score: null,
-    failure_count: 0,
-    loop_detected: false,
-    pipeline_id: null,
-    pipeline_position: null,
-    notes: null,
-    activity_log: null,
-    created_at: '2026-03-26T09:00:00Z',
-    updated_at: '2026-03-26T09:00:00Z',
-  },
-]
 
 // ---------------------------------------------------------------------------
 // Query param filter schema
@@ -134,22 +50,30 @@ export async function GET(request: NextRequest) {
   }
 
   const filters = filterParse.data
-  let tasks = [...MOCK_TASKS]
+  const supabase = createAdminClient()
+
+  let query = supabase.from('tasks').select('*', { count: 'exact' })
 
   if (filters.project_id) {
-    tasks = tasks.filter((t) => t.project_id === filters.project_id)
+    query = query.eq('project_id', filters.project_id)
   }
   if (filters.kanban_status) {
-    tasks = tasks.filter((t) => t.kanban_status === filters.kanban_status)
+    query = query.eq('kanban_status', filters.kanban_status)
   }
   if (filters.quadrant) {
-    tasks = tasks.filter((t) => t.quadrant === filters.quadrant)
+    query = query.eq('quadrant', filters.quadrant)
   }
   if (filters.agent_id) {
-    tasks = tasks.filter((t) => t.agent_id === filters.agent_id)
+    query = query.eq('agent_id', filters.agent_id)
   }
 
-  return NextResponse.json({ data: tasks, count: tasks.length })
+  const { data, count, error } = await query
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ data, count })
 }
 
 // ---------------------------------------------------------------------------
@@ -176,17 +100,73 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const now = new Date().toISOString()
-  const newTask: Task = {
-    id: crypto.randomUUID(),
-    ...parse.data,
-    session_count: 0,
-    total_cost_usd: 0,
-    failure_count: 0,
-    loop_detected: false,
-    created_at: now,
-    updated_at: now,
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from('tasks')
+    .insert(parse.data)
+    .select()
+    .single()
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ data: newTask }, { status: 201 })
+  return NextResponse.json({ data }, { status: 201 })
+}
+
+// ---------------------------------------------------------------------------
+// PATCH /api/tasks  (update task fields)
+// ---------------------------------------------------------------------------
+
+const TaskPatchSchema = z.object({
+  id: z.string().uuid(),
+  kanban_status: KanbanStatusSchema.optional(),
+  quadrant: QuadrantSchema.optional(),
+  title: z.string().optional(),
+  description: z.string().nullable().optional(),
+  priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
+  agent_id: z.string().uuid().nullable().optional(),
+  started_at: z.string().nullable().optional(),
+  completed_at: z.string().nullable().optional(),
+  estimated_minutes: z.number().nullable().optional(),
+  actual_minutes: z.number().nullable().optional(),
+  notes: z.string().nullable().optional(),
+})
+
+export async function PATCH(request: NextRequest) {
+  if (!authenticate(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  const parse = TaskPatchSchema.safeParse(body)
+  if (!parse.success) {
+    return NextResponse.json(
+      { error: 'Validation failed', details: parse.error.flatten() },
+      { status: 422 },
+    )
+  }
+
+  const { id, ...updates } = parse.data
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ data })
 }

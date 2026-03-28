@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { InboxMessageCreateSchema, InboxMessageStatusSchema } from '@/lib/validation'
-import type { InboxMessage } from '@/lib/types'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // ---------------------------------------------------------------------------
 // Auth helper
@@ -13,73 +13,6 @@ function authenticate(req: NextRequest): boolean {
   if (!expected) return true
   return token === expected
 }
-
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-const MOCK_MESSAGES: InboxMessage[] = [
-  {
-    id: 'im000001-0001-4000-8000-000000000001',
-    type: 'delegation',
-    from_agent_id: 'ag000001-0001-4000-8000-000000000001',
-    task_id: 'a1b2c3d4-0001-4000-8000-000000000001',
-    subject: 'CI/CD pipeline needs manual approval',
-    body: 'The deployment to production requires your approval. All tests passed on staging. Please review and approve the release.',
-    status: 'unread',
-    requires_action: true,
-    action_options: [{ label: 'Approve', value: 'approve' }, { label: 'Reject', value: 'reject' }, { label: 'Defer', value: 'defer' }],
-    action_taken: null,
-    actioned_at: null,
-    notion_synced: false,
-    created_at: '2026-03-28T09:00:00Z',
-  },
-  {
-    id: 'im000001-0002-4000-8000-000000000002',
-    type: 'report',
-    from_agent_id: 'ag000001-0002-4000-8000-000000000002',
-    task_id: null,
-    subject: 'Weekly content performance report',
-    body: 'Published 3 blog posts this week. Average SEO score: 84. Top performer: "10 Natural Remedies for Better Sleep" with 890 pageviews.',
-    status: 'read',
-    requires_action: false,
-    action_options: null,
-    action_taken: null,
-    actioned_at: null,
-    notion_synced: true,
-    created_at: '2026-03-27T17:00:00Z',
-  },
-  {
-    id: 'im000001-0003-4000-8000-000000000003',
-    type: 'failure_report',
-    from_agent_id: 'ag000001-0001-4000-8000-000000000001',
-    task_id: 'a1b2c3d4-0001-4000-8000-000000000001',
-    subject: 'Build failure: test suite timeout',
-    body: 'The integration test suite timed out after 300 seconds. This is the 2nd consecutive failure. Possible causes: database connection pool exhaustion.',
-    status: 'unread',
-    requires_action: true,
-    action_options: [{ label: 'Investigate', value: 'investigate' }, { label: 'Retry', value: 'retry' }, { label: 'Skip Tests', value: 'skip_tests' }, { label: 'Assign to Human', value: 'assign_to_human' }],
-    action_taken: null,
-    actioned_at: null,
-    notion_synced: false,
-    created_at: '2026-03-28T10:15:00Z',
-  },
-  {
-    id: 'im000001-0004-4000-8000-000000000004',
-    type: 'question',
-    from_agent_id: 'ag000001-0002-4000-8000-000000000002',
-    task_id: 'a1b2c3d4-0002-4000-8000-000000000002',
-    subject: 'Clarification needed: target audience for adaptogens article',
-    body: 'Should the adaptogens guide target beginners or experienced supplement users? This affects keyword selection and content depth.',
-    status: 'unread',
-    requires_action: true,
-    action_options: [{ label: 'Beginners', value: 'beginners' }, { label: 'Experienced', value: 'experienced' }, { label: 'Both', value: 'both' }],
-    action_taken: null,
-    actioned_at: null,
-    notion_synced: false,
-    created_at: '2026-03-28T11:00:00Z',
-  },
-]
 
 // ---------------------------------------------------------------------------
 // Query filter schema
@@ -100,6 +33,18 @@ const InboxActionSchema = z.object({
   action: z.enum(['mark_read', 'mark_actioned', 'dismiss']),
   message_id: z.string().uuid(),
   action_taken: z.string().optional(),
+})
+
+// ---------------------------------------------------------------------------
+// PATCH body schema
+// ---------------------------------------------------------------------------
+
+const InboxPatchSchema = z.object({
+  id: z.string().uuid(),
+  status: InboxMessageStatusSchema.optional(),
+  action_taken: z.string().nullable().optional(),
+  actioned_at: z.string().nullable().optional(),
+  notion_synced: z.boolean().optional(),
 })
 
 // ---------------------------------------------------------------------------
@@ -127,28 +72,54 @@ export async function GET(request: NextRequest) {
   }
 
   const filters = filterParse.data
-  let messages = [...MOCK_MESSAGES]
+  const supabase = createAdminClient()
+
+  let query = supabase.from('inbox_messages').select('*', { count: 'exact' })
 
   if (filters.status) {
-    messages = messages.filter((m) => m.status === filters.status)
+    query = query.eq('status', filters.status)
   }
   if (filters.type) {
-    messages = messages.filter((m) => m.type === filters.type)
+    query = query.eq('type', filters.type)
   }
   if (filters.requires_action !== undefined) {
-    const reqAction = filters.requires_action === 'true'
-    messages = messages.filter((m) => m.requires_action === reqAction)
+    query = query.eq('requires_action', filters.requires_action === 'true')
   }
   if (filters.from_agent_id) {
-    messages = messages.filter((m) => m.from_agent_id === filters.from_agent_id)
+    query = query.eq('from_agent_id', filters.from_agent_id)
   }
 
-  const unreadCount = MOCK_MESSAGES.filter((m) => m.status === 'unread').length
-  const actionRequiredCount = MOCK_MESSAGES.filter((m) => m.requires_action && m.status !== 'actioned').length
+  query = query.order('created_at', { ascending: false })
+
+  const { data, count, error } = await query
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // Compute summary counts from a separate query (unfiltered)
+  const { count: unreadCount, error: unreadError } = await supabase
+    .from('inbox_messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'unread')
+
+  if (unreadError) {
+    return NextResponse.json({ error: unreadError.message }, { status: 500 })
+  }
+
+  const { count: actionRequiredCount, error: actionError } = await supabase
+    .from('inbox_messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('requires_action', true)
+    .neq('status', 'actioned')
+
+  if (actionError) {
+    return NextResponse.json({ error: actionError.message }, { status: 500 })
+  }
 
   return NextResponse.json({
-    data: messages,
-    count: messages.length,
+    data,
+    count,
     unread_count: unreadCount,
     action_required_count: actionRequiredCount,
   })
@@ -170,19 +141,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
+  const supabase = createAdminClient()
+
   // Check if this is an action request (mark-read, dismiss, etc.)
   const actionParse = InboxActionSchema.safeParse(body)
   if (actionParse.success) {
     const { action, message_id, action_taken } = actionParse.data
-    const message = MOCK_MESSAGES.find((m) => m.id === message_id)
-
-    if (!message) {
-      return NextResponse.json({ error: 'Message not found' }, { status: 404 })
-    }
-
     const now = new Date().toISOString()
-    let updatedStatus: InboxMessage['status']
 
+    let updatedStatus: string
     switch (action) {
       case 'mark_read':
         updatedStatus = 'read'
@@ -195,14 +162,22 @@ export async function POST(request: NextRequest) {
         break
     }
 
-    const updatedMessage: InboxMessage = {
-      ...message,
-      status: updatedStatus,
-      action_taken: action_taken ?? message.action_taken,
-      actioned_at: action === 'mark_actioned' ? now : message.actioned_at,
+    const updates: Record<string, unknown> = { status: updatedStatus }
+    if (action_taken) updates.action_taken = action_taken
+    if (action === 'mark_actioned') updates.actioned_at = now
+
+    const { data, error } = await supabase
+      .from('inbox_messages')
+      .update(updates)
+      .eq('id', message_id)
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ data: updatedMessage })
+    return NextResponse.json({ data })
   }
 
   // Otherwise, treat as a create-message request
@@ -214,15 +189,62 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const newMessage: InboxMessage = {
-    id: crypto.randomUUID(),
-    ...createParse.data,
-    status: 'unread',
-    action_taken: null,
-    actioned_at: null,
-    notion_synced: false,
-    created_at: new Date().toISOString(),
+  const { data, error } = await supabase
+    .from('inbox_messages')
+    .insert({
+      ...createParse.data,
+      status: 'unread',
+      action_taken: null,
+      actioned_at: null,
+      notion_synced: false,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ data: newMessage }, { status: 201 })
+  return NextResponse.json({ data }, { status: 201 })
+}
+
+// ---------------------------------------------------------------------------
+// PATCH /api/inbox  (update message status)
+// ---------------------------------------------------------------------------
+
+export async function PATCH(request: NextRequest) {
+  if (!authenticate(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  const parse = InboxPatchSchema.safeParse(body)
+  if (!parse.success) {
+    return NextResponse.json(
+      { error: 'Validation failed', details: parse.error.flatten() },
+      { status: 422 },
+    )
+  }
+
+  const { id, ...updates } = parse.data
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from('inbox_messages')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ data })
 }

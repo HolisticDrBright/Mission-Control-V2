@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { ViralReelCreateSchema, ViralReelStageSchema } from '@/lib/validation'
-import type { ViralReel } from '@/lib/types'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // ---------------------------------------------------------------------------
 // Auth helper
@@ -13,48 +13,6 @@ function authenticate(req: NextRequest): boolean {
   if (!expected) return true
   return token === expected
 }
-
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-const MOCK_REELS: ViralReel[] = [
-  {
-    id: 'vr000001-0001-4000-8000-000000000001',
-    title: 'Top 5 Gut Health Myths',
-    brand: 'holistic_dr_bright',
-    product: 'Probiotic Plus',
-    target_platform: 'tiktok',
-    stage: 'script_draft',
-    brief: 'Debunk common gut health myths in a fast-paced, engaging reel.',
-    generated_hooks: [
-      'Your gut is lying to you...',
-      'Stop doing THIS to your gut!',
-      'Doctors won\'t tell you this about probiotics',
-    ],
-    selected_hook: 'Your gut is lying to you...',
-    script_draft: 'Hook: Your gut is lying to you. Here are 5 myths...',
-    script_final: null,
-    voice_id: null,
-    avatar_id: null,
-    avatar_video_url: null,
-    broll_queries: ['gut health', 'probiotics', 'digestive system'],
-    broll_clips: null,
-    assembled_video_url: null,
-    captioned_video_url: null,
-    thumbnail_url: null,
-    published_urls: null,
-    published_at: null,
-    engagement_data: null,
-    outcome_score: null,
-    hook_style: 'myth-buster',
-    cta_type: 'link_in_bio',
-    duration_seconds: 45,
-    avatar_demographic: 'female_30s_professional',
-    created_at: '2026-03-26T10:00:00Z',
-    updated_at: '2026-03-28T08:00:00Z',
-  },
-]
 
 // ---------------------------------------------------------------------------
 // Query filter schema
@@ -85,12 +43,21 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  let reels = [...MOCK_REELS]
+  const supabase = createAdminClient()
+
+  let query = supabase.from('viral_reels').select('*', { count: 'exact' })
+
   if (filterParse.data.stage) {
-    reels = reels.filter((r) => r.stage === filterParse.data.stage)
+    query = query.eq('stage', filterParse.data.stage)
   }
 
-  return NextResponse.json({ data: reels, count: reels.length })
+  const { data, count, error } = await query
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ data, count })
 }
 
 // ---------------------------------------------------------------------------
@@ -117,19 +84,23 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const now = new Date().toISOString()
-  const newReel: ViralReel = {
-    id: crypto.randomUUID(),
-    ...parse.data,
-    created_at: now,
-    updated_at: now,
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from('viral_reels')
+    .insert(parse.data)
+    .select()
+    .single()
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
   // TODO: Trigger actual pipeline (hook generation, etc.) once services are connected
   const pipelineStarted = true
 
   return NextResponse.json(
-    { data: newReel, pipeline_started: pipelineStarted },
+    { data, pipeline_started: pipelineStarted },
     { status: 201 },
   )
 }

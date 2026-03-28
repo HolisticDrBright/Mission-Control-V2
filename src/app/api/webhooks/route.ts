@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // ---------------------------------------------------------------------------
 // HMAC validation helper
@@ -103,41 +104,145 @@ export async function POST(request: NextRequest) {
   }
 
   const event = parse.data
+  const supabase = createAdminClient()
 
-  // TODO: Route events to appropriate handlers once services are connected
-  // For now, log the event and acknowledge
-  const processed: Record<string, unknown> = {
-    event_id: crypto.randomUUID(),
-    event_type: event.event,
-    received_at: new Date().toISOString(),
-    acknowledged: true,
+  // Determine entity type and id from the event
+  let entityType: string
+  let entityId: string | null = null
+
+  if (event.event.startsWith('agent.')) {
+    entityType = 'agent'
+    entityId = event.agent_id ?? null
+  } else if (event.event.startsWith('task.')) {
+    entityType = 'task'
+    entityId = event.task_id ?? null
+  } else if (event.event.startsWith('pipeline.')) {
+    entityType = 'pipeline'
+    entityId = event.pipeline_id ?? null
+  } else {
+    entityType = 'system'
   }
 
-  // Event-specific mock responses
-  switch (event.event) {
-    case 'agent.started':
-    case 'agent.completed':
-    case 'agent.failed':
-    case 'agent.heartbeat':
-      processed.agent_id = event.agent_id ?? null
-      processed.handler = 'agent_event_processor'
-      break
-    case 'task.created':
-    case 'task.updated':
-    case 'task.completed':
-    case 'task.failed':
-      processed.task_id = event.task_id ?? null
-      processed.handler = 'task_event_processor'
-      break
-    case 'pipeline.stage_completed':
-    case 'pipeline.completed':
-      processed.pipeline_id = event.pipeline_id ?? null
-      processed.handler = 'pipeline_event_processor'
-      break
-    case 'system.alert':
-      processed.handler = 'alert_processor'
-      break
+  // Insert into activity_log
+  const { data: logEntry, error: logError } = await supabase
+    .from('activity_log')
+    .insert({
+      event_type: event.event,
+      description: `Webhook event: ${event.event}`,
+      entity_type: entityType,
+      entity_id: entityId,
+      payload: event.payload ?? null,
+      created_at: event.timestamp,
+    })
+    .select()
+    .single()
+
+  if (logError) {
+    return NextResponse.json({ error: logError.message }, { status: 500 })
   }
 
-  return NextResponse.json({ data: processed }, { status: 200 })
+  // Update relevant entities based on event type
+  const now = new Date().toISOString()
+
+  if (event.event === 'agent.heartbeat' && event.agent_id) {
+    await supabase
+      .from('agents')
+      .update({ heartbeat_at: event.timestamp, updated_at: now })
+      .eq('id', event.agent_id)
+  } else if (event.event === 'agent.started' && event.agent_id) {
+    await supabase
+      .from('agents')
+      .update({ status: 'running', updated_at: now })
+      .eq('id', event.agent_id)
+  } else if (event.event === 'agent.completed' && event.agent_id) {
+    await supabase
+      .from('agents')
+      .update({ status: 'idle', current_task_id: null, updated_at: now })
+      .eq('id', event.agent_id)
+  } else if (event.event === 'agent.failed' && event.agent_id) {
+    await supabase
+      .from('agents')
+      .update({ status: 'error', updated_at: now })
+      .eq('id', event.agent_id)
+  } else if (event.event === 'task.completed' && event.task_id) {
+    await supabase
+      .from('tasks')
+      .update({
+        kanban_status: 'done',
+        completed_at: event.timestamp,
+        outcome_score: (event.payload?.outcome_score as number) || null,
+        updated_at: now,
+      })
+      .eq('id', event.task_id)
+
+    // Log to run_history
+    await supabase.from('run_history').insert({
+      task_id: event.task_id,
+      agent_id: event.agent_id || null,
+      status: 'completed',
+      ended_at: event.timestamp,
+      cost_usd: (event.payload?.cost_usd as number) || 0,
+      input_tokens: (event.payload?.input_tokens as number) || 0,
+      output_tokens: (event.payload?.output_tokens as number) || 0,
+      model_used: (event.payload?.model as string) || null,
+      outcome_score: (event.payload?.outcome_score as number) || null,
+    })
+  } else if (event.event === 'task.failed' && event.task_id) {
+    // Increment failure count and check for loops
+    const { data: task } = await supabase
+      .from('tasks')
+      .select('failure_count')
+      .eq('id', event.task_id)
+      .single()
+
+    const newFailCount = (task?.failure_count || 0) + 1
+    const loopDetected = newFailCount >= 3
+
+    await supabase
+      .from('tasks')
+      .update({
+        kanban_status: 'blocked',
+        failure_count: newFailCount,
+        loop_detected: loopDetected,
+        updated_at: now,
+      })
+      .eq('id', event.task_id)
+
+    // Loop detection: create inbox approval request after 3 failures
+    if (loopDetected) {
+      await supabase.from('inbox_messages').insert({
+        type: 'approval_request',
+        from_agent_id: event.agent_id || null,
+        task_id: event.task_id,
+        subject: `Loop detected: Task failed ${newFailCount} times`,
+        body: `Task ${event.task_id} has failed ${newFailCount} consecutive times. Auto-dispatch has been paused pending your review.`,
+        requires_action: true,
+        action_options: [
+          { label: 'Retry', value: 'retry' },
+          { label: 'Cancel', value: 'cancel' },
+          { label: 'Reassign', value: 'reassign' },
+        ],
+      })
+    }
+
+    // Log to run_history
+    await supabase.from('run_history').insert({
+      task_id: event.task_id,
+      agent_id: event.agent_id || null,
+      status: 'failed',
+      ended_at: event.timestamp,
+      error_message: (event.payload?.error as string) || null,
+    })
+  }
+
+  return NextResponse.json({
+    data: {
+      event_id: logEntry.id,
+      event_type: event.event,
+      entity_type: entityType,
+      entity_id: entityId,
+      received_at: new Date().toISOString(),
+      acknowledged: true,
+    },
+  }, { status: 200 })
 }
