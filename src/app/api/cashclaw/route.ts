@@ -16,6 +16,9 @@ export async function GET(request: NextRequest) {
   const days = parseInt(searchParams.get('days') || '30')
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ data: view === 'summary' ? { total_earned_eth: 0, tasks_completed: 0, tasks_declined: 0, tasks_failed: 0, avg_rating: 0, avg_outcome_score: 0, top_categories: [], daily_earnings: [], hourly_activity: [] } : [], message: 'Database not configured' })
+  }
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
 
   try {

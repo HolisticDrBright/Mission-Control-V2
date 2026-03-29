@@ -12,6 +12,9 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ data: { active_agents: [], active_tasks: [], recent_activity: [], system_health: { agents_online: 0, agents_total: 0, tasks_in_progress: 0, tasks_blocked: 0 }, timestamp: new Date().toISOString() }, message: 'Database not configured' })
+  }
 
   // Query agents, active tasks, and recent activity in parallel
   const [agentsResult, tasksResult, activityResult] = await Promise.all([

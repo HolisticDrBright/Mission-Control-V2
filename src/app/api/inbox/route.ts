@@ -63,6 +63,9 @@ export async function GET(request: NextRequest) {
 
   const filters = filterParse.data
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ data: [], count: 0, unread_count: 0, action_required_count: 0, message: 'Database not configured' })
+  }
 
   let query = supabase.from('inbox_messages').select('*', { count: 'exact' })
 
@@ -132,6 +135,9 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+  }
 
   // Check if this is an action request (mark-read, dismiss, etc.)
   const actionParse = InboxActionSchema.safeParse(body)
@@ -224,6 +230,9 @@ export async function PATCH(request: NextRequest) {
 
   const { id, ...updates } = parse.data
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+  }
 
   const { data, error } = await supabase
     .from('inbox_messages')

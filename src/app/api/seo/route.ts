@@ -34,6 +34,9 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ data: { blog_posts: [], keywords: [] }, counts: { blog_posts: 0, keywords: 0 }, message: 'Database not configured' })
+  }
 
   let postsQuery = supabase.from('blog_posts').select('*', { count: 'exact' })
   let keywordsQuery = supabase.from('keywords').select('*', { count: 'exact' })
@@ -83,6 +86,9 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+  }
 
   const { data, error } = await supabase
     .from('blog_posts')

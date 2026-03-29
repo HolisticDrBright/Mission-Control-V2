@@ -45,6 +45,9 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ data: { last_sync_at: null, total_synced: 0, total_failed: 0, is_syncing: false, recent_logs: [] }, message: 'Database not configured' })
+  }
 
   let query = supabase
     .from('notion_sync_log')
@@ -104,6 +107,9 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+  }
 
   // Log the sync request for now (actual sync not yet implemented)
   const syncJob = {

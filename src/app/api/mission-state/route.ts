@@ -12,6 +12,9 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ data: { seo: null, outreach: null, alerts: [], quick_stats: { articles_today: 0, signals_today: 0, hot_leads: 0, pending_replies: 0 } }, message: 'Database not configured' })
+  }
   const { searchParams } = request.nextUrl
   const section = searchParams.get('section') // 'seo' | 'outreach' | 'cron' | 'system' | 'budget' | 'alerts' | null (all)
 

@@ -36,6 +36,9 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ data: [], count: 0, message: 'Database not configured' })
+  }
 
   let query = supabase.from('va_tasks').select('*', { count: 'exact' })
 
@@ -80,6 +83,9 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+  }
 
   const { data, error } = await supabase
     .from('va_tasks')

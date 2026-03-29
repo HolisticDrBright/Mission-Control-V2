@@ -14,6 +14,9 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ data: [], count: 0, message: 'Database not configured' })
+  }
 
   const { data, count, error } = await supabase
     .from('agents')
@@ -52,6 +55,9 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+  }
 
   const { data, error } = await supabase
     .from('agents')
@@ -103,6 +109,9 @@ export async function PATCH(request: NextRequest) {
 
   const { id, ...updates } = parse.data
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+  }
 
   const { data, error } = await supabase
     .from('agents')

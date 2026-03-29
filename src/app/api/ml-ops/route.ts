@@ -37,6 +37,9 @@ export async function GET(request: NextRequest) {
 
   const { agent_name, view = 'all' } = filterParse.data
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ data: { agent_task_logs: [], pattern_analysis_logs: [], prompt_versions: [] }, counts: { agent_task_logs: 0, pattern_analysis_logs: 0, prompt_versions: 0 }, message: 'Database not configured' })
+  }
 
   if (view === 'task_logs' || view === 'all') {
     let taskLogsQuery = supabase.from('agent_task_log').select('*', { count: 'exact' }).order('run_timestamp', { ascending: false })
@@ -126,6 +129,9 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+  }
 
   const { data, error } = await supabase
     .from('agent_task_log')

@@ -12,6 +12,9 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ data: { status: 'unconfigured', active_agents: 0, running_tasks: 0, pending_scheduled_jobs: 0, recent_runs: [], total_recent_cost_usd: 0, concurrency_limit: 3, poll_interval_ms: 30000 }, message: 'Database not configured' })
+  }
 
   // Gather system stats
   const [
@@ -60,6 +63,9 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+  }
 
   switch (body.action) {
     case 'dispatch_task': {

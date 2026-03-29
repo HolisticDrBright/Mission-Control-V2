@@ -41,6 +41,9 @@ export async function GET(request: NextRequest) {
 
   const filters = filterParse.data
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ data: [], count: 0, message: 'Database not configured' })
+  }
 
   let query = supabase.from('tasks').select('*', { count: 'exact' })
 
@@ -91,6 +94,9 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+  }
 
   const { data, error } = await supabase
     .from('tasks')
@@ -146,6 +152,9 @@ export async function PATCH(request: NextRequest) {
 
   const { id, ...updates } = parse.data
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+  }
 
   const { data, error } = await supabase
     .from('tasks')

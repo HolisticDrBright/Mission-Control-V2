@@ -105,6 +105,9 @@ export async function POST(request: NextRequest) {
 
   const event = parse.data
   const supabase = createAdminClient()
+  if (!supabase) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+  }
 
   // Determine entity type and id from the event
   let entityType: string
