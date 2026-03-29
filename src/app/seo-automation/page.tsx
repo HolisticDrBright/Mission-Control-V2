@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useMemo } from 'react'
+import { useSeoData, useOrchestratorState } from '@/lib/hooks/use-orchestrator'
 import {
   TrendingUp,
   Search,
@@ -173,35 +174,42 @@ const STAGE_LABELS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 export default function SEOAutomationPage() {
-  const [data, setData] = useState<SEOData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data: seoData, loading, error, refetch } = useSeoData()
+  const { data: stateData } = useOrchestratorState()
   const [trendSort, setTrendSort] = useState<'desc' | 'asc'>('desc')
   const [kwFilter, setKwFilter] = useState<string>('all')
   const [refreshing, setRefreshing] = useState(false)
 
-  const fetchData = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true)
-    else setRefreshing(true)
-    try {
-      const res = await fetch('/api/mission-state?section=seo')
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = await res.json()
-      setData(json)
-      setError(null)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch')
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [])
+  // Build a combined data object that matches the old SEOData shape
+  const seoState = stateData.seo as Record<string, unknown> | null
+  const data: SEOData | null = (seoData.trends.length > 0 || seoData.keywords.length > 0 || seoData.articles.length > 0 || seoState)
+    ? {
+        system_status: (seoState?.system_status as SEOData['system_status']) ?? 'offline',
+        articles_published_total: (seoState?.articles_published_total as number) ?? 0,
+        articles_today: (seoState?.articles_today as number) ?? 0,
+        daily_cost: (seoState?.daily_cost as number) ?? 0,
+        pipeline: (seoState?.pipeline as PipelinePhase) ?? {
+          topics_awaiting_research: 0, last_trend_discovery: null,
+          keywords_awaiting_content: 0, last_keyword_research: null,
+          articles_created_today: 0, max_articles_per_day: 10, last_content_creation: null,
+          articles_awaiting_publishing: 0, articles_published_today: 0, last_publishing: null,
+        },
+        trends: seoData.trends as unknown as Trend[],
+        keywords: seoData.keywords as unknown as Keyword[],
+        articles: seoData.articles as unknown as Article[],
+        performance: (seoState?.performance as PerformanceMetrics) ?? {
+          total_published: 0, avg_validation_score: 0, avg_seo_score: 0,
+          avg_cost_per_article: 0, articles_page_one: 0,
+        },
+      }
+    : null
 
-  useEffect(() => {
-    fetchData()
-    const interval = setInterval(() => fetchData(true), 30000)
-    return () => clearInterval(interval)
-  }, [fetchData])
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    refetch()
+    // Brief visual feedback
+    setTimeout(() => setRefreshing(false), 500)
+  }
 
   // Sorted trends
   const sortedTrends = useMemo(() => {
@@ -304,7 +312,7 @@ export default function SEOAutomationPage() {
             {formatCurrency(data?.daily_cost ?? 0)} today
           </span>
           <button
-            onClick={() => fetchData(true)}
+            onClick={handleRefresh}
             className="p-1.5 rounded-lg transition-colors"
             style={{ color: 'var(--text-muted)' }}
             title="Refresh"

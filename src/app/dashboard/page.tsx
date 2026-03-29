@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useQuickStats, useCostLog, useAlerts } from '@/lib/hooks/use-orchestrator'
 import { useDashboardData } from '@/lib/hooks/use-data'
 import {
   Bot,
@@ -285,29 +285,11 @@ function QuickActions() {
 }
 
 function MissionControlSystems() {
-  const [mcData, setMcData] = useState<{
-    seo: Record<string, unknown> | null
-    outreach: Record<string, unknown> | null
-    alerts: Array<{ id: string; system: string; severity: string; issue: string; timestamp: string }>
-    quick_stats: { articles_today: number; signals_today: number; hot_leads: number; pending_replies: number }
-  } | null>(null)
-  const [budget, setBudget] = useState<{
-    seo: number; outreach: number; cron: number; total: number; remaining: number; budget: number; percent_used: number
-  } | null>(null)
+  const { data: stats } = useQuickStats()
+  const { data: budget } = useCostLog()
+  const { data: alertData } = useAlerts()
 
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/mission-state').then(r => r.ok ? r.json() : null),
-      fetch('/api/mission-state?section=budget').then(r => r.ok ? r.json() : null),
-    ]).then(([stateRes, budgetRes]) => {
-      if (stateRes?.data) setMcData(stateRes.data)
-      if (budgetRes?.data) setBudget(budgetRes.data)
-    }).catch(() => {})
-  }, [])
-
-  const stats = mcData?.quick_stats
-  const alerts = mcData?.alerts || []
-  const unackedAlerts = alerts.filter(a => a.severity === 'critical' || a.severity === 'warning')
+  const unackedAlerts = alertData.alerts.filter(a => a.severity === 'critical' || a.severity === 'warning')
 
   return (
     <div className="space-y-4">

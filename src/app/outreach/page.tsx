@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
+import { useOutreachData, useOrchestratorState } from '@/lib/hooks/use-orchestrator'
+import { createClient } from '@/lib/supabase/client'
 import {
   Target,
   Radio,
@@ -948,48 +950,42 @@ const emptyData: OutreachData = {
 }
 
 export default function OutreachPage() {
-  const [data, setData] = useState<OutreachData>(emptyData)
-  const [loading, setLoading] = useState(true)
-  const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  const { data: outreachData, loading, refetch } = useOutreachData()
+  const { data: stateData } = useOrchestratorState()
+  const [lastRefresh] = useState<Date | null>(() => new Date())
+  const [markedActioned, setMarkedActioned] = useState<Set<string>>(new Set())
 
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await fetch('/api/mission-state?section=outreach')
-      if (res.ok) {
-        const json = await res.json()
-        setData({ ...emptyData, ...json })
-      }
-    } catch {
-      // keep existing data on error
-    } finally {
-      setLoading(false)
-      setLastRefresh(new Date())
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchData()
-    const interval = setInterval(fetchData, 30000)
-    return () => clearInterval(interval)
-  }, [fetchData])
+  // Build the combined data object matching the old OutreachData shape
+  const outreachState = stateData.outreach as Record<string, unknown> | null
+  const data: OutreachData = {
+    health: (outreachState?.health as OutreachData['health']) ?? 'offline',
+    metrics: (outreachState?.metrics as OutreachData['metrics']) ?? emptyData.metrics,
+    funnel: (outreachState?.funnel as OutreachData['funnel']) ?? emptyData.funnel,
+    signals: outreachData.signals as unknown as Signal[],
+    leads: outreachData.leads as unknown as Lead[],
+    replies: (outreachData.replies as unknown as Reply[]).map((r) =>
+      markedActioned.has(r.id) ? { ...r, actioned: true } : r,
+    ),
+    campaigns: outreachData.campaigns as unknown as Campaign[],
+    domains: outreachData.domains as unknown as Domain[],
+    daily_stats: (outreachState?.daily_stats as DailyStats) ?? emptyData.daily_stats,
+  }
 
   const handleMarkActioned = useCallback(
     async (id: string) => {
-      setData((prev) => ({
-        ...prev,
-        replies: prev.replies.map((r) => (r.id === id ? { ...r, actioned: true } : r)),
-      }))
+      setMarkedActioned((prev) => new Set(prev).add(id))
       try {
-        await fetch('/api/mission-state?section=outreach&action=mark_actioned', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reply_id: id }),
-        })
+        const supabase = createClient()
+        await supabase
+          .from('mc_outreach_replies')
+          .update({ actioned: true })
+          .eq('id', id)
+        refetch()
       } catch {
         // optimistic update; ignore errors
       }
     },
-    []
+    [refetch],
   )
 
   if (loading) {
