@@ -1,0 +1,15 @@
+[Unit]
+Description=Mission Control MCP Server (SSE)
+After=network.target
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/opt/Mission-Control-V2/mcp-server
+ExecStart=/usr/bin/node dist/sse.js
+Restart=always
+RestartSec=5
+EnvironmentFile=/opt/Mission-Control-V2/mcp-server/.env
+
+[Install]
+WantedBy=multi-user.target
