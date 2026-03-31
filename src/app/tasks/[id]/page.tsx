@@ -41,38 +41,52 @@ export default function TaskDetailPage({ params }: { params: Params }) {
   const [quickMsg, setQuickMsg] = useState('')
 
   useEffect(() => {
-    const supabase = createClient()
-    supabase
-      .from('tasks')
-      .select('*')
-      .eq('id', id)
-      .single()
-      .then(({ data, error }) => {
-        if (error) console.error(error)
-        setTask(data as Task | null)
-        setLoading(false)
-      })
+    try {
+      const supabase = createClient()
+      supabase
+        .from('tasks')
+        .select('*')
+        .eq('id', id)
+        .single()
+        .then(({ data, error }) => {
+          if (error) console.error(error)
+          setTask(data as Task | null)
+          setLoading(false)
+        }, () => {
+          setLoading(false)
+        })
+    } catch {
+      setLoading(false)
+    }
   }, [id])
 
   const quickStatus = async (newStatus: string) => {
     setQuickMsg('')
-    const supabase = createClient()
-    const { error } = await supabase.from('tasks').update({ kanban_status: newStatus }).eq('id', id)
-    if (error) {
-      setQuickMsg(`Error: ${error.message}`)
-    } else {
-      setTask((prev) => prev ? { ...prev, kanban_status: newStatus as Task['kanban_status'] } : prev)
-      setQuickMsg(`Status changed to ${newStatus.replace(/_/g, ' ')}`)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from('tasks').update({ kanban_status: newStatus }).eq('id', id)
+      if (error) {
+        setQuickMsg(`Error: ${error.message}`)
+      } else {
+        setTask((prev) => prev ? { ...prev, kanban_status: newStatus as Task['kanban_status'] } : prev)
+        setQuickMsg(`Status changed to ${newStatus.replace(/_/g, ' ')}`)
+      }
+    } catch (e: unknown) {
+      setQuickMsg(`Error: ${e instanceof Error ? e.message : 'Unknown error'}`)
     }
   }
 
   const handleUpdate = async (data: Record<string, unknown>) => {
-    const supabase = createClient()
-    const { error } = await supabase.from('tasks').update(data).eq('id', id)
-    if (error) throw new Error(error.message)
-    // refresh local state
-    const { data: fresh } = await supabase.from('tasks').select('*').eq('id', id).single()
-    if (fresh) setTask(fresh as Task)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from('tasks').update(data).eq('id', id)
+      if (error) throw new Error(error.message)
+      // refresh local state
+      const { data: fresh } = await supabase.from('tasks').select('*').eq('id', id).single()
+      if (fresh) setTask(fresh as Task)
+    } catch (e: unknown) {
+      throw e instanceof Error ? e : new Error('Failed to update task')
+    }
   }
 
   if (loading) {
@@ -117,7 +131,7 @@ export default function TaskDetailPage({ params }: { params: Params }) {
             <strong>Notes:</strong> {task.notes}
           </p>
         )}
-        {task.acceptance_criteria && task.acceptance_criteria.length > 0 && (
+        {Array.isArray(task.acceptance_criteria) && task.acceptance_criteria.length > 0 && (
           <div className="mb-3">
             <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Acceptance Criteria</p>
             <ul className="list-disc list-inside text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -174,7 +188,7 @@ export default function TaskDetailPage({ params }: { params: Params }) {
       {/* Activity Log */}
       <GlassCard className="p-5">
         <h2 className="text-sm font-medium mb-3" style={{ color: 'var(--text-secondary)' }}>Activity Log</h2>
-        {task.activity_log && task.activity_log.length > 0 ? (
+        {Array.isArray(task.activity_log) && task.activity_log.length > 0 ? (
           <div className="space-y-2">
             {task.activity_log.map((entry: TaskActivityEntry, i: number) => (
               <div key={i} className="flex items-start gap-3 text-sm p-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>

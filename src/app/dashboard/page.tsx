@@ -289,7 +289,7 @@ function MissionControlSystems() {
   const { data: budget } = useCostLog()
   const { data: alertData } = useAlerts()
 
-  const unackedAlerts = alertData.alerts.filter(a => a.severity === 'critical' || a.severity === 'warning')
+  const unackedAlerts = (alertData?.alerts || []).filter(a => a.severity === 'critical' || a.severity === 'warning')
 
   return (
     <div className="space-y-4">

@@ -961,13 +961,13 @@ export default function OutreachPage() {
     health: (outreachState?.health as OutreachData['health']) ?? 'offline',
     metrics: (outreachState?.metrics as OutreachData['metrics']) ?? emptyData.metrics,
     funnel: (outreachState?.funnel as OutreachData['funnel']) ?? emptyData.funnel,
-    signals: outreachData.signals as unknown as Signal[],
-    leads: outreachData.leads as unknown as Lead[],
-    replies: (outreachData.replies as unknown as Reply[]).map((r) =>
+    signals: (outreachData?.signals || []) as unknown as Signal[],
+    leads: (outreachData?.leads || []) as unknown as Lead[],
+    replies: ((outreachData?.replies || []) as unknown as Reply[]).map((r) =>
       markedActioned.has(r.id) ? { ...r, actioned: true } : r,
     ),
-    campaigns: outreachData.campaigns as unknown as Campaign[],
-    domains: outreachData.domains as unknown as Domain[],
+    campaigns: (outreachData?.campaigns || []) as unknown as Campaign[],
+    domains: (outreachData?.domains || []) as unknown as Domain[],
     daily_stats: (outreachState?.daily_stats as DailyStats) ?? emptyData.daily_stats,
   }
 

@@ -63,16 +63,21 @@ export default function LeadDetailPage() {
 
   const fetchLead = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('mc_outreach_leads')
-      .select('*')
-      .eq('id', leadId)
-      .single()
+    try {
+      const { data, error } = await supabase
+        .from('mc_outreach_leads')
+        .select('*')
+        .eq('id', leadId)
+        .single()
 
-    if (!error && data) {
-      setLead(data as Lead)
+      if (!error && data) {
+        setLead(data as Lead)
+      }
+    } catch {
+      // table may not exist
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [leadId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -80,38 +85,46 @@ export default function LeadDetailPage() {
   }, [fetchLead])
 
   const handleSave = async (formData: Record<string, unknown>) => {
-    const { error } = await supabase
-      .from('mc_outreach_leads')
-      .update({
-        first_name: formData.first_name,
-        last_name: formData.last_name || null,
-        email: formData.email,
-        phone: formData.phone || null,
-        company: formData.company || null,
-        title: formData.title || null,
-        linkedin_url: formData.linkedin_url || null,
-        source: formData.source || lead?.source,
-        status: formData.status || lead?.status,
-        tags: formData.tags || [],
-        notes: formData.notes || null,
-      })
-      .eq('id', leadId)
+    try {
+      const { error } = await supabase
+        .from('mc_outreach_leads')
+        .update({
+          first_name: formData.first_name,
+          last_name: formData.last_name || null,
+          email: formData.email,
+          phone: formData.phone || null,
+          company: formData.company || null,
+          title: formData.title || null,
+          linkedin_url: formData.linkedin_url || null,
+          source: formData.source || lead?.source,
+          status: formData.status || lead?.status,
+          tags: formData.tags || [],
+          notes: formData.notes || null,
+        })
+        .eq('id', leadId)
 
-    if (error) throw new Error(error.message)
-    await fetchLead()
+      if (error) throw new Error(error.message)
+      await fetchLead()
+    } catch (e) {
+      throw e instanceof Error ? e : new Error('Failed to save lead')
+    }
   }
 
   const handleStatusChange = async (newStatus: string) => {
-    const { error } = await supabase
-      .from('mc_outreach_leads')
-      .update({ status: newStatus, last_action_date: new Date().toISOString() })
-      .eq('id', leadId)
+    try {
+      const { error } = await supabase
+        .from('mc_outreach_leads')
+        .update({ status: newStatus, last_action_date: new Date().toISOString() })
+        .eq('id', leadId)
 
-    if (error) {
-      setStatusMessage(`Error: ${error.message}`)
-    } else {
-      setStatusMessage(`Status changed to ${newStatus.replace(/_/g, ' ')}`)
-      await fetchLead()
+      if (error) {
+        setStatusMessage(`Error: ${error.message}`)
+      } else {
+        setStatusMessage(`Status changed to ${newStatus.replace(/_/g, ' ')}`)
+        await fetchLead()
+      }
+    } catch {
+      setStatusMessage('Error: Failed to update status')
     }
   }
 

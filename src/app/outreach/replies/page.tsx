@@ -35,17 +35,22 @@ export default function OutreachRepliesPage() {
 
   const fetchReplies = useCallback(async () => {
     setLoading(true)
-    const { data, count, error } = await supabase
-      .from('mc_outreach_replies')
-      .select('*', { count: 'exact' })
-      .order('received_at', { ascending: false })
-      .range((page - 1) * pageSize, page * pageSize - 1)
+    try {
+      const { data, count, error } = await supabase
+        .from('mc_outreach_replies')
+        .select('*', { count: 'exact' })
+        .order('received_at', { ascending: false })
+        .range((page - 1) * pageSize, page * pageSize - 1)
 
-    if (!error && data) {
-      setReplies(data as Reply[])
-      setTotal(count ?? 0)
+      if (!error && data) {
+        setReplies(data as Reply[])
+        setTotal(count ?? 0)
+      }
+    } catch {
+      // table may not exist
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [page]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -53,13 +58,17 @@ export default function OutreachRepliesPage() {
   }, [fetchReplies])
 
   const handleAction = async (id: string, update: Record<string, unknown>) => {
-    const { error } = await supabase
-      .from('mc_outreach_replies')
-      .update(update)
-      .eq('id', id)
+    try {
+      const { error } = await supabase
+        .from('mc_outreach_replies')
+        .update(update)
+        .eq('id', id)
 
-    if (!error) {
-      await fetchReplies()
+      if (!error) {
+        await fetchReplies()
+      }
+    } catch {
+      // table may not exist
     }
   }
 

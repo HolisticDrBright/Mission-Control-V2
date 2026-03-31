@@ -57,17 +57,22 @@ export default function OutreachSignalsPage() {
 
   const fetchSignals = useCallback(async () => {
     setLoading(true)
-    const { data, count, error } = await supabase
-      .from('mc_outreach_signals')
-      .select('*', { count: 'exact' })
-      .order('detected_at', { ascending: false })
-      .range((page - 1) * pageSize, page * pageSize - 1)
+    try {
+      const { data, count, error } = await supabase
+        .from('mc_outreach_signals')
+        .select('*', { count: 'exact' })
+        .order('detected_at', { ascending: false })
+        .range((page - 1) * pageSize, page * pageSize - 1)
 
-    if (!error && data) {
-      setSignals(data as Signal[])
-      setTotal(count ?? 0)
+      if (!error && data) {
+        setSignals(data as Signal[])
+        setTotal(count ?? 0)
+      }
+    } catch {
+      // table may not exist
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [page]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -75,21 +80,25 @@ export default function OutreachSignalsPage() {
   }, [fetchSignals])
 
   const handleCreateLead = async (formData: Record<string, unknown>) => {
-    const { error } = await supabase.from('mc_outreach_leads').insert({
-      first_name: formData.first_name,
-      last_name: formData.last_name || null,
-      email: formData.email,
-      phone: formData.phone || null,
-      company: formData.company || null,
-      title: formData.title || null,
-      linkedin_url: formData.linkedin_url || null,
-      source: formData.source || 'other',
-      status: formData.status || 'new',
-      tags: formData.tags || [],
-      notes: formData.notes || null,
-    })
-    if (error) throw new Error(error.message)
-    setCreateFromSignal(null)
+    try {
+      const { error } = await supabase.from('mc_outreach_leads').insert({
+        first_name: formData.first_name,
+        last_name: formData.last_name || null,
+        email: formData.email,
+        phone: formData.phone || null,
+        company: formData.company || null,
+        title: formData.title || null,
+        linkedin_url: formData.linkedin_url || null,
+        source: formData.source || 'other',
+        status: formData.status || 'new',
+        tags: formData.tags || [],
+        notes: formData.notes || null,
+      })
+      if (error) throw new Error(error.message)
+      setCreateFromSignal(null)
+    } catch (e) {
+      throw e instanceof Error ? e : new Error('Failed to create lead')
+    }
   }
 
   type Row = Record<string, unknown>

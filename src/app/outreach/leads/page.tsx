@@ -66,22 +66,27 @@ export default function OutreachLeadsPage() {
 
   const fetchLeads = useCallback(async () => {
     setLoading(true)
-    let query = supabase
-      .from('mc_outreach_leads')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range((page - 1) * pageSize, page * pageSize - 1)
+    try {
+      let query = supabase
+        .from('mc_outreach_leads')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range((page - 1) * pageSize, page * pageSize - 1)
 
-    if (filterStatus) query = query.eq('status', filterStatus)
-    if (filterSource) query = query.eq('source', filterSource)
+      if (filterStatus) query = query.eq('status', filterStatus)
+      if (filterSource) query = query.eq('source', filterSource)
 
-    const { data, count, error } = await query
+      const { data, count, error } = await query
 
-    if (!error && data) {
-      setLeads(data as Lead[])
-      setTotal(count ?? 0)
+      if (!error && data) {
+        setLeads(data as Lead[])
+        setTotal(count ?? 0)
+      }
+    } catch {
+      // table may not exist
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [page, filterStatus, filterSource]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -89,21 +94,25 @@ export default function OutreachLeadsPage() {
   }, [fetchLeads])
 
   const handleCreate = async (formData: Record<string, unknown>) => {
-    const { error } = await supabase.from('mc_outreach_leads').insert({
-      first_name: formData.first_name,
-      last_name: formData.last_name || null,
-      email: formData.email,
-      phone: formData.phone || null,
-      company: formData.company || null,
-      title: formData.title || null,
-      linkedin_url: formData.linkedin_url || null,
-      source: formData.source || 'manual',
-      status: formData.status || 'new',
-      tags: formData.tags || [],
-      notes: formData.notes || null,
-    })
-    if (error) throw new Error(error.message)
-    await fetchLeads()
+    try {
+      const { error } = await supabase.from('mc_outreach_leads').insert({
+        first_name: formData.first_name,
+        last_name: formData.last_name || null,
+        email: formData.email,
+        phone: formData.phone || null,
+        company: formData.company || null,
+        title: formData.title || null,
+        linkedin_url: formData.linkedin_url || null,
+        source: formData.source || 'manual',
+        status: formData.status || 'new',
+        tags: formData.tags || [],
+        notes: formData.notes || null,
+      })
+      if (error) throw new Error(error.message)
+      await fetchLeads()
+    } catch (e) {
+      throw e instanceof Error ? e : new Error('Failed to create lead')
+    }
   }
 
   type Row = Record<string, unknown>

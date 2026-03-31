@@ -23,10 +23,14 @@ export default function ProjectCreatePage() {
   const router = useRouter()
 
   const handleCreate = async (data: Record<string, unknown>) => {
-    const supabase = createClient()
-    const { error } = await supabase.from('projects').insert(data)
-    if (error) throw new Error(error.message)
-    router.push('/projects')
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from('projects').insert(data)
+      if (error) throw new Error(error.message)
+      router.push('/projects')
+    } catch (e) {
+      throw e instanceof Error ? e : new Error('Failed to create project')
+    }
   }
 
   return (

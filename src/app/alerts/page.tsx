@@ -26,33 +26,46 @@ export default function AlertsPage() {
 
   const fetchAlerts = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('mc_alerts')
-      .select('*')
-      .order('created_at', { ascending: false })
-    setAlerts((data as Alert[]) ?? [])
-    setLoading(false)
+    try {
+      const { data } = await supabase
+        .from('mc_alerts')
+        .select('*')
+        .order('created_at', { ascending: false })
+      setAlerts((data as Alert[]) ?? [])
+    } catch {
+      // table may not exist
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchAlerts() }, [fetchAlerts])
 
   const handleCreate = async (formData: Record<string, unknown>) => {
-    const { error } = await supabase.from('mc_alerts').insert({
-      system: formData.system,
-      severity: formData.severity,
-      issue: formData.issue,
-      action_needed: formData.action_needed || null,
-      acknowledged: false,
-    })
-    if (error) throw new Error(error.message)
-    await fetchAlerts()
-    setShowForm(false)
+    try {
+      const { error } = await supabase.from('mc_alerts').insert({
+        system: formData.system,
+        severity: formData.severity,
+        issue: formData.issue,
+        action_needed: formData.action_needed || null,
+        acknowledged: false,
+      })
+      if (error) throw new Error(error.message)
+      await fetchAlerts()
+      setShowForm(false)
+    } catch (e) {
+      throw e instanceof Error ? e : new Error('Failed to create alert')
+    }
   }
 
   const handleAcknowledge = async (id: string) => {
-    const { error } = await supabase.from('mc_alerts').update({ acknowledged: true }).eq('id', id)
-    if (error) throw new Error(error.message)
-    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, acknowledged: true } : a)))
+    try {
+      const { error } = await supabase.from('mc_alerts').update({ acknowledged: true }).eq('id', id)
+      if (error) throw new Error(error.message)
+      setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, acknowledged: true } : a)))
+    } catch {
+      // ignore
+    }
   }
 
   const columns = [

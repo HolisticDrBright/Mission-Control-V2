@@ -27,27 +27,36 @@ export default function BlogPage() {
 
   const fetchPosts = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('blog_posts')
-      .select('*')
-      .order('created_at', { ascending: false })
-    setPosts((data as BlogPost[]) ?? [])
-    setLoading(false)
+    try {
+      const { data } = await supabase
+        .from('blog_posts')
+        .select('*')
+        .order('created_at', { ascending: false })
+      setPosts((data as BlogPost[]) ?? [])
+    } catch {
+      // table may not exist
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchPosts() }, [fetchPosts])
 
   const handleCreate = async (formData: Record<string, unknown>) => {
-    const { error } = await supabase.from('blog_posts').insert({
-      site_id: formData.site_id || null,
-      title: formData.title,
-      target_keyword: formData.target_keyword || null,
-      status: formData.status || 'idea',
-      meta_description: formData.meta_description || null,
-    })
-    if (error) throw new Error(error.message)
-    await fetchPosts()
-    setShowForm(false)
+    try {
+      const { error } = await supabase.from('blog_posts').insert({
+        site_id: formData.site_id || null,
+        title: formData.title,
+        target_keyword: formData.target_keyword || null,
+        status: formData.status || 'idea',
+        meta_description: formData.meta_description || null,
+      })
+      if (error) throw new Error(error.message)
+      await fetchPosts()
+      setShowForm(false)
+    } catch (e) {
+      throw e instanceof Error ? e : new Error('Failed to create blog post')
+    }
   }
 
   const columns = [

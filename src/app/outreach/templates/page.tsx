@@ -48,17 +48,22 @@ export default function OutreachTemplatesPage() {
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true)
-    const { data, count, error } = await supabase
-      .from('mc_outreach_templates')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range((page - 1) * pageSize, page * pageSize - 1)
+    try {
+      const { data, count, error } = await supabase
+        .from('mc_outreach_templates')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range((page - 1) * pageSize, page * pageSize - 1)
 
-    if (!error && data) {
-      setTemplates(data as Template[])
-      setTotal(count ?? 0)
+      if (!error && data) {
+        setTemplates(data as Template[])
+        setTotal(count ?? 0)
+      }
+    } catch {
+      // table may not exist
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [page]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -66,15 +71,19 @@ export default function OutreachTemplatesPage() {
   }, [fetchTemplates])
 
   const handleCreate = async (formData: Record<string, unknown>) => {
-    const { error } = await supabase.from('mc_outreach_templates').insert({
-      name: formData.name,
-      type: formData.type || 'cold_outreach',
-      subject: formData.subject || null,
-      body: formData.body || null,
-      notes: formData.notes || null,
-    })
-    if (error) throw new Error(error.message)
-    await fetchTemplates()
+    try {
+      const { error } = await supabase.from('mc_outreach_templates').insert({
+        name: formData.name,
+        type: formData.type || 'cold_outreach',
+        subject: formData.subject || null,
+        body: formData.body || null,
+        notes: formData.notes || null,
+      })
+      if (error) throw new Error(error.message)
+      await fetchTemplates()
+    } catch (e) {
+      throw e instanceof Error ? e : new Error('Failed to create template')
+    }
   }
 
   type Row = Record<string, unknown>

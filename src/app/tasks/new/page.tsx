@@ -43,10 +43,14 @@ export default function TaskCreatePage() {
   const router = useRouter()
 
   const handleCreate = async (data: Record<string, unknown>) => {
-    const supabase = createClient()
-    const { error } = await supabase.from('tasks').insert(data)
-    if (error) throw new Error(error.message)
-    router.push('/tasks')
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from('tasks').insert(data)
+      if (error) throw new Error(error.message)
+      router.push('/tasks')
+    } catch (e) {
+      throw e instanceof Error ? e : new Error('Failed to create task')
+    }
   }
 
   return (

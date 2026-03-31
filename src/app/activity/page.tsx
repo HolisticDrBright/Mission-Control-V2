@@ -26,33 +26,42 @@ export default function ActivityPage() {
 
   const fetchEntries = useCallback(async () => {
     setLoading(true)
-    let query = supabase
-      .from('activity_log')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(100)
+    try {
+      let query = supabase
+        .from('activity_log')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100)
 
-    if (filter.trim()) {
-      query = query.ilike('event_type', `%${filter.trim()}%`)
+      if (filter.trim()) {
+        query = query.ilike('event_type', `%${filter.trim()}%`)
+      }
+
+      const { data } = await query
+      setEntries((data as ActivityEntry[]) ?? [])
+    } catch {
+      // table may not exist
+    } finally {
+      setLoading(false)
     }
-
-    const { data } = await query
-    setEntries((data as ActivityEntry[]) ?? [])
-    setLoading(false)
   }, [filter])
 
   useEffect(() => { fetchEntries() }, [fetchEntries])
 
   const handleCreate = async (formData: Record<string, unknown>) => {
-    const { error } = await supabase.from('activity_log').insert({
-      event_type: formData.event_type,
-      description: formData.description,
-      entity_type: formData.entity_type || null,
-      entity_id: formData.entity_id || null,
-    })
-    if (error) throw new Error(error.message)
-    await fetchEntries()
-    setShowForm(false)
+    try {
+      const { error } = await supabase.from('activity_log').insert({
+        event_type: formData.event_type,
+        description: formData.description,
+        entity_type: formData.entity_type || null,
+        entity_id: formData.entity_id || null,
+      })
+      if (error) throw new Error(error.message)
+      await fetchEntries()
+      setShowForm(false)
+    } catch (e) {
+      throw e instanceof Error ? e : new Error('Failed to log activity')
+    }
   }
 
   const columns = [
