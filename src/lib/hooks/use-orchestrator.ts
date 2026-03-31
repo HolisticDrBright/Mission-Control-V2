@@ -29,21 +29,27 @@ function useSupabaseQuery<T>(
       queryFn(supabase).then(
         (result) => {
           if (result.error) {
+            console.error('[use-orchestrator] query error:', result.error.message)
             setError(result.error.message)
-          } else if (result.data) {
-            setData(result.data)
+            setData(defaultValue) // Reset to safe default on error
+          } else {
+            setData(result.data ?? defaultValue)
             setError(null)
           }
           setLoading(false)
         },
-        () => {
+        (err) => {
+          console.error('[use-orchestrator] fetch failed:', err)
+          setData(defaultValue) // Reset to safe default on network failure
           setLoading(false)
         },
       )
-    } catch {
+    } catch (err) {
+      console.error('[use-orchestrator] client error:', err)
+      setData(defaultValue) // Reset to safe default if client creation fails
       setLoading(false)
     }
-  }, [queryFn])
+  }, [queryFn, defaultValue])
 
   useEffect(() => {
     fetch()
