@@ -94,69 +94,63 @@ export default function LeadDetailPage() {
   const fetchLead = useCallback(async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('mc_outreach_leads')
-        .select('*')
-        .eq('id', leadId)
-        .single()
-
-      if (!error && data) {
-        setLead(data as Lead)
+      const res = await fetch(`/api/outreach/leads/${leadId}`)
+      if (res.ok) {
+        const json = await res.json()
+        if (json.data) setLead(json.data as Lead)
       }
     } catch {
-      // table may not exist
+      // API may not be available
     } finally {
       setLoading(false)
     }
-  }, [leadId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [leadId])
 
   useEffect(() => {
     fetchLead()
   }, [fetchLead])
 
   const handleSave = async (formData: Record<string, unknown>) => {
-    try {
-      const { error } = await supabase
-        .from('mc_outreach_leads')
-        .update({
-          first_name: formData.first_name,
-          last_name: formData.last_name || null,
-          email: formData.email,
-          phone: formData.phone || null,
-          company: formData.company || null,
-          title: formData.title || null,
-          linkedin_url: formData.linkedin_url || null,
-          city: formData.city || null,
-          state: formData.state || null,
-          source: formData.source || lead?.source,
-          status: formData.status || lead?.status,
-          pipeline_stage: formData.pipeline_stage || lead?.pipeline_stage,
-          campaign: formData.campaign || null,
-          tags: formData.tags || [],
-          notes: formData.notes || null,
-          personalization_brief: formData.notes || null,
-        })
-        .eq('id', leadId)
-
-      if (error) throw new Error(error.message)
-      await fetchLead()
-    } catch (e) {
-      throw e instanceof Error ? e : new Error('Failed to save lead')
+    const res = await fetch(`/api/outreach/leads/${leadId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        first_name: formData.first_name,
+        last_name: formData.last_name || null,
+        email: formData.email,
+        phone: formData.phone || null,
+        company_name: formData.company || null,
+        industry: formData.title || null,
+        linkedin_url: formData.linkedin_url || null,
+        city: formData.city || null,
+        state: formData.state || null,
+        source: formData.source || lead?.source,
+        pipeline_stage: formData.pipeline_stage || lead?.pipeline_stage,
+        campaign: formData.campaign || null,
+        notes: formData.notes || null,
+        personalization_brief: formData.notes || null,
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'Failed to save lead')
     }
+    await fetchLead()
   }
 
   const handlePipelineChange = async (newStage: string) => {
     try {
-      const { error } = await supabase
-        .from('mc_outreach_leads')
-        .update({ pipeline_stage: newStage, last_action_date: new Date().toISOString() })
-        .eq('id', leadId)
-
-      if (error) {
-        setStatusMessage(`Error: ${error.message}`)
-      } else {
+      const res = await fetch(`/api/outreach/leads/${leadId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pipeline_stage: newStage, last_action_date: new Date().toISOString() }),
+      })
+      if (res.ok) {
         setStatusMessage(`Pipeline stage changed to ${newStage.replace(/_/g, ' ')}`)
         await fetchLead()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setStatusMessage(`Error: ${err.error || 'Failed to update'}`)
       }
     } catch {
       setStatusMessage('Error: Failed to update pipeline stage')
@@ -165,16 +159,17 @@ export default function LeadDetailPage() {
 
   const handleStatusChange = async (newStatus: string) => {
     try {
-      const { error } = await supabase
-        .from('mc_outreach_leads')
-        .update({ status: newStatus, last_action_date: new Date().toISOString() })
-        .eq('id', leadId)
-
-      if (error) {
-        setStatusMessage(`Error: ${error.message}`)
-      } else {
+      const res = await fetch(`/api/outreach/leads/${leadId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pipeline_stage: newStatus, last_action_date: new Date().toISOString() }),
+      })
+      if (res.ok) {
         setStatusMessage(`Status changed to ${newStatus.replace(/_/g, ' ')}`)
         await fetchLead()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setStatusMessage(`Error: ${err.error || 'Failed to update'}`)
       }
     } catch {
       setStatusMessage('Error: Failed to update status')

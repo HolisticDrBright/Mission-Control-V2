@@ -127,10 +127,16 @@ export default function NewLeadPage() {
     }
 
     try {
-      const supabase = createClient()
-      const { error } = await supabase.from('mc_outreach_leads').insert(row)
+      const res = await fetch('/api/outreach/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(row),
+      })
 
-      if (error) throw new Error(error.message)
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || `HTTP ${res.status}`)
+      }
 
       setStatus('success')
       setMessage('Lead created successfully! Redirecting...')
@@ -209,12 +215,17 @@ export default function NewLeadPage() {
         const result = await res.json()
         setCsvStatus(`Imported ${result.imported ?? mapped.length} of ${mapped.length} leads.`)
       } else {
-        // Fallback: insert directly via Supabase
-        const supabase = createClient()
+        const errData = await res.json().catch(() => ({}))
+        setCsvStatus(`Import failed: ${errData.error || `HTTP ${res.status}`}. Trying one-by-one...`)
+        // Fallback: insert one-by-one via API
         let imported = 0
         for (const lead of mapped) {
-          const { error } = await supabase.from('mc_outreach_leads').insert(lead)
-          if (!error) imported++
+          const singleRes = await fetch('/api/outreach/leads', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(lead),
+          })
+          if (singleRes.ok) imported++
         }
         setCsvStatus(`Imported ${imported} of ${mapped.length} leads.`)
       }

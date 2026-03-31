@@ -81,20 +81,27 @@ export default function OutreachSignalsPage() {
 
   const handleCreateLead = async (formData: Record<string, unknown>) => {
     try {
-      const { error } = await supabase.from('mc_outreach_leads').insert({
-        first_name: formData.first_name,
-        last_name: formData.last_name || null,
-        email: formData.email,
-        phone: formData.phone || null,
-        company: formData.company || null,
-        title: formData.title || null,
-        linkedin_url: formData.linkedin_url || null,
-        source: formData.source || 'other',
-        status: formData.status || 'new',
-        tags: formData.tags || [],
-        notes: formData.notes || null,
+      const res = await fetch('/api/outreach/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name: formData.first_name,
+          last_name: formData.last_name || null,
+          email: formData.email,
+          phone: formData.phone || null,
+          company_name: formData.company || null,
+          title: formData.title || null,
+          linkedin_url: formData.linkedin_url || null,
+          source: formData.source || 'other',
+          pipeline_stage: formData.status || 'new',
+          tags: formData.tags || [],
+          notes: formData.notes || null,
+        }),
       })
-      if (error) throw new Error(error.message)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to create lead')
+      }
       setCreateFromSignal(null)
     } catch (e) {
       throw e instanceof Error ? e : new Error('Failed to create lead')

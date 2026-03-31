@@ -72,14 +72,21 @@ export default function OutreachTemplatesPage() {
 
   const handleCreate = async (formData: Record<string, unknown>) => {
     try {
-      const { error } = await supabase.from('mc_outreach_templates').insert({
-        name: formData.name,
-        type: formData.type || 'cold_outreach',
-        subject: formData.subject || null,
-        body: formData.body || null,
-        notes: formData.notes || null,
+      const res = await fetch('/api/outreach/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          type: formData.type || 'cold_outreach',
+          subject: formData.subject || null,
+          body: formData.body || null,
+          notes: formData.notes || null,
+        }),
       })
-      if (error) throw new Error(error.message)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to create template')
+      }
       await fetchTemplates()
     } catch (e) {
       throw e instanceof Error ? e : new Error('Failed to create template')

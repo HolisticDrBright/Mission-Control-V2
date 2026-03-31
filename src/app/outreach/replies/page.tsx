@@ -59,12 +59,13 @@ export default function OutreachRepliesPage() {
 
   const handleAction = async (id: string, update: Record<string, unknown>) => {
     try {
-      const { error } = await supabase
-        .from('mc_outreach_replies')
-        .update(update)
-        .eq('id', id)
+      const res = await fetch('/api/outreach/replies', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...update }),
+      })
 
-      if (!error) {
+      if (res.ok) {
         await fetchReplies()
       }
     } catch {
