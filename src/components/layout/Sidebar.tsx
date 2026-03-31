@@ -26,6 +26,8 @@ import {
   AlertTriangle,
   Activity,
   FileText,
+  Radio,
+  MessageSquare,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/store"
@@ -70,6 +72,10 @@ export function Sidebar() {
       items: [
         { label: "SEO Automation", href: "/seo-automation", icon: Search },
         { label: "Cold Outreach", href: "/outreach", icon: Target },
+        { label: "  Leads", href: "/outreach/leads", icon: Users },
+        { label: "  Templates", href: "/outreach/templates", icon: FileText },
+        { label: "  Signals", href: "/outreach/signals", icon: Radio },
+        { label: "  Replies", href: "/outreach/replies", icon: MessageSquare },
       ],
     },
     {

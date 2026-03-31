@@ -276,6 +276,85 @@ server.tool('list_outreach_replies', 'List email replies', { actioned: z.boolean
 server.tool('action_reply', 'Mark reply as actioned', { id: z.string(), action_taken: z.string() }, async ({ id, action_taken }) => json(await updateRow('mc_outreach_replies', id, { actioned: true, action_taken })))
 
 // ==========================================================================
+// OUTREACH LEADS — FULL CRUD
+// ==========================================================================
+
+server.tool('create_lead', 'Create a new outreach lead with contact info', {
+  first_name: z.string().describe('Contact first name'),
+  last_name: z.string().describe('Contact last name'),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  company: z.string().describe('Company name'),
+  title: z.string().optional().describe('Job title/role'),
+  linkedin_url: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  source: z.enum(['apollo', 'manual', 'referral', 'inbound', 'website', 'other']).optional().default('manual'),
+  status: z.enum(['new', 'researching', 'contacted', 'replied', 'meeting_booked', 'converted', 'dead']).optional().default('new'),
+  campaign: z.string().optional().describe('Campaign name (d-spiked, corporate-wellness, etc.)'),
+  tags: z.array(z.string()).optional(),
+  notes: z.string().optional(),
+  lead_score: z.number().optional().default(50),
+}, async (args) => {
+  const stageMap: Record<string, string> = { new: 'signal', researching: 'enriched', contacted: 'campaign', replied: 'replied', meeting_booked: 'meeting', converted: 'closed', dead: 'signal' }
+  const row = {
+    company_name: args.company,
+    contacts: [{ name: `${args.first_name} ${args.last_name}`, title: args.title || '', email: args.email || '', linkedin_url: args.linkedin_url || '' }],
+    pipeline_stage: stageMap[args.status || 'new'] || 'signal',
+    lead_score: args.lead_score || 50,
+    city: args.city, state: args.state, country: 'US',
+    notes: args.notes,
+    personalization_brief: args.notes || '',
+    signal_type: args.source || 'manual',
+    signal_strength: 'warm',
+  }
+  return json(await insertRow('mc_outreach_leads', row))
+})
+
+server.tool('import_leads_bulk', 'Bulk import multiple leads at once', {
+  leads: z.array(z.object({
+    first_name: z.string(), last_name: z.string(), email: z.string().optional(),
+    company: z.string(), title: z.string().optional(), source: z.string().optional(),
+    campaign: z.string().optional(), notes: z.string().optional(),
+  })).describe('Array of lead objects to import'),
+}, async ({ leads }) => {
+  const rows = leads.map(l => ({
+    company_name: l.company,
+    contacts: [{ name: `${l.first_name} ${l.last_name}`, title: l.title || '', email: l.email || '' }],
+    pipeline_stage: 'signal', lead_score: 50, signal_type: l.source || 'manual', signal_strength: 'warm',
+    notes: l.notes, personalization_brief: l.notes || '',
+  }))
+  const db = getDb()
+  const { data, error } = await db.from('mc_outreach_leads').insert(rows).select()
+  if (error) throw new Error(error.message)
+  return json({ imported: (data || []).length, total: leads.length })
+})
+
+server.tool('delete_lead', 'Delete an outreach lead', {
+  lead_id: z.string().describe('Lead UUID'),
+}, async ({ lead_id }) => json(await deleteRow('mc_outreach_leads', lead_id, 'lead_id')))
+
+// ==========================================================================
+// OUTREACH TEMPLATES — FULL CRUD
+// ==========================================================================
+
+server.tool('create_template', 'Create an outreach email template', {
+  name: z.string(), type: z.enum(['cold_email', 'follow_up_1', 'follow_up_2', 'follow_up_3', 'breakup', 'linkedin_connect', 'linkedin_message']),
+  campaign: z.string().optional(), subject: z.string().optional(),
+  body: z.string().describe('Email body, supports {{first_name}}, {{company}} variables'),
+  notes: z.string().optional(),
+}, async (args) => json(await insertRow('mc_outreach_templates', args)))
+
+server.tool('update_template', 'Update an outreach template', {
+  id: z.string(), name: z.string().optional(), type: z.string().optional(),
+  subject: z.string().optional(), body: z.string().optional(), notes: z.string().optional(),
+}, async ({ id, ...u }) => json(await updateRow('mc_outreach_templates', id, u)))
+
+server.tool('delete_template', 'Delete an outreach template', {
+  id: z.string(),
+}, async ({ id }) => json(await deleteRow('mc_outreach_templates', id)))
+
+// ==========================================================================
 // SEO AUTOMATION
 // ==========================================================================
 

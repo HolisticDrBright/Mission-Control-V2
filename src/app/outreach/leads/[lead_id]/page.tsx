@@ -17,15 +17,22 @@ interface Lead {
   email: string
   phone: string
   company: string
+  company_name: string
   title: string
   linkedin_url: string
+  city: string
+  state: string
+  country: string
   source: string
   status: string
+  pipeline_stage: string
+  campaign: string
   tags: string[]
   notes: string
   lead_score: number
   last_action_date: string
-  contacts: Array<{ name?: string; email?: string; role?: string }>
+  contacts: Array<{ name?: string; email?: string; role?: string; title?: string; linkedin_url?: string }>
+  personalization_brief: string
   created_at: string
   updated_at: string
 }
@@ -45,7 +52,29 @@ const SOURCE_OPTIONS = [
   { value: 'manual', label: 'Manual' },
   { value: 'referral', label: 'Referral' },
   { value: 'inbound', label: 'Inbound' },
+  { value: 'website', label: 'Website' },
   { value: 'other', label: 'Other' },
+]
+
+const CAMPAIGN_OPTIONS = [
+  { value: 'd-spiked', label: 'D-Spiked' },
+  { value: 'corporate-wellness', label: 'Corporate Wellness' },
+  { value: 'ceo-optimization', label: 'CEO Optimization' },
+  { value: 'longevity-funnel', label: 'Longevity Funnel' },
+  { value: 'weight-loss', label: 'Weight Loss' },
+  { value: 'jv-partners', label: 'JV Partners' },
+  { value: 'other', label: 'Other' },
+]
+
+const PIPELINE_STAGES = [
+  { value: 'signal', label: 'Signal' },
+  { value: 'enriched', label: 'Enriched' },
+  { value: 'email_found', label: 'Email Found' },
+  { value: 'validated', label: 'Validated' },
+  { value: 'campaign', label: 'Campaign' },
+  { value: 'replied', label: 'Replied' },
+  { value: 'meeting', label: 'Meeting' },
+  { value: 'closed', label: 'Closed' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -60,6 +89,7 @@ export default function LeadDetailPage() {
   const [lead, setLead] = useState<Lead | null>(null)
   const [loading, setLoading] = useState(true)
   const [statusMessage, setStatusMessage] = useState('')
+  const [editing, setEditing] = useState(false)
 
   const fetchLead = useCallback(async () => {
     setLoading(true)
@@ -96,10 +126,15 @@ export default function LeadDetailPage() {
           company: formData.company || null,
           title: formData.title || null,
           linkedin_url: formData.linkedin_url || null,
+          city: formData.city || null,
+          state: formData.state || null,
           source: formData.source || lead?.source,
           status: formData.status || lead?.status,
+          pipeline_stage: formData.pipeline_stage || lead?.pipeline_stage,
+          campaign: formData.campaign || null,
           tags: formData.tags || [],
           notes: formData.notes || null,
+          personalization_brief: formData.notes || null,
         })
         .eq('id', leadId)
 
@@ -107,6 +142,24 @@ export default function LeadDetailPage() {
       await fetchLead()
     } catch (e) {
       throw e instanceof Error ? e : new Error('Failed to save lead')
+    }
+  }
+
+  const handlePipelineChange = async (newStage: string) => {
+    try {
+      const { error } = await supabase
+        .from('mc_outreach_leads')
+        .update({ pipeline_stage: newStage, last_action_date: new Date().toISOString() })
+        .eq('id', leadId)
+
+      if (error) {
+        setStatusMessage(`Error: ${error.message}`)
+      } else {
+        setStatusMessage(`Pipeline stage changed to ${newStage.replace(/_/g, ' ')}`)
+        await fetchLead()
+      }
+    } catch {
+      setStatusMessage('Error: Failed to update pipeline stage')
     }
   }
 
@@ -152,7 +205,7 @@ export default function LeadDetailPage() {
         items={[
           { label: 'Outreach', href: '/outreach' },
           { label: 'Leads', href: '/outreach/leads' },
-          { label: lead.company || `${lead.first_name} ${lead.last_name}` },
+          { label: lead.company_name || lead.company || `${lead.first_name} ${lead.last_name}` },
         ]}
       />
 
@@ -210,6 +263,30 @@ export default function LeadDetailPage() {
             </dd>
           </div>
           <div>
+            <dt className="font-medium" style={{ color: 'var(--text-muted)' }}>Company Name</dt>
+            <dd style={{ color: 'var(--text-primary)' }}>{lead.company_name || '—'}</dd>
+          </div>
+          <div>
+            <dt className="font-medium" style={{ color: 'var(--text-muted)' }}>Pipeline Stage</dt>
+            <dd style={{ color: 'var(--text-primary)' }}>{lead.pipeline_stage || '—'}</dd>
+          </div>
+          <div>
+            <dt className="font-medium" style={{ color: 'var(--text-muted)' }}>City</dt>
+            <dd style={{ color: 'var(--text-primary)' }}>{lead.city || '—'}</dd>
+          </div>
+          <div>
+            <dt className="font-medium" style={{ color: 'var(--text-muted)' }}>State</dt>
+            <dd style={{ color: 'var(--text-primary)' }}>{lead.state || '—'}</dd>
+          </div>
+          <div>
+            <dt className="font-medium" style={{ color: 'var(--text-muted)' }}>Country</dt>
+            <dd style={{ color: 'var(--text-primary)' }}>{lead.country || '—'}</dd>
+          </div>
+          <div>
+            <dt className="font-medium" style={{ color: 'var(--text-muted)' }}>Campaign</dt>
+            <dd style={{ color: 'var(--text-primary)' }}>{lead.campaign || '—'}</dd>
+          </div>
+          <div>
             <dt className="font-medium" style={{ color: 'var(--text-muted)' }}>Last Action</dt>
             <dd style={{ color: 'var(--text-primary)' }}>
               {lead.last_action_date ? new Date(lead.last_action_date).toLocaleDateString() : '—'}
@@ -237,6 +314,22 @@ export default function LeadDetailPage() {
               className={`glass-button text-xs px-3 py-1.5 ${lead.status === s.value ? 'glass-button-primary' : ''}`}
               onClick={() => handleStatusChange(s.value)}
               disabled={lead.status === s.value}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+        <h2 className="text-lg font-semibold mb-3 mt-6" style={{ color: 'var(--text-primary)' }}>
+          Pipeline Stage
+        </h2>
+        <div className="flex flex-wrap gap-2">
+          {PIPELINE_STAGES.map((s) => (
+            <button
+              key={s.value}
+              type="button"
+              className={`glass-button text-xs px-3 py-1.5 ${lead.pipeline_stage === s.value ? 'glass-button-primary' : ''}`}
+              onClick={() => handlePipelineChange(s.value)}
+              disabled={lead.pipeline_stage === s.value}
             >
               {s.label}
             </button>
@@ -277,19 +370,36 @@ export default function LeadDetailPage() {
       {/* Activity / Notes */}
       <GlassCard>
         <h2 className="text-lg font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
-          Notes
+          Notes &amp; Activity
         </h2>
         <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
           {lead.notes || 'No notes yet.'}
         </p>
+        {lead.personalization_brief && lead.personalization_brief !== lead.notes && (
+          <div className="mt-4 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <h3 className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Personalization Brief</h3>
+            <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
+              {lead.personalization_brief}
+            </p>
+          </div>
+        )}
       </GlassCard>
 
       {/* Edit form */}
       <GlassCard>
-        <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-          Edit Lead
-        </h2>
-        <GlassForm onSubmit={handleSave} submitLabel="Save Changes">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Edit Lead
+          </h2>
+          <button
+            type="button"
+            className="glass-button text-xs px-4 py-1.5"
+            onClick={() => setEditing((v) => !v)}
+          >
+            {editing ? 'Cancel Edit' : 'Edit'}
+          </button>
+        </div>
+        {editing && <GlassForm onSubmit={handleSave} submitLabel="Save Changes">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="First Name" name="first_name" required defaultValue={lead.first_name} />
             <Field label="Last Name" name="last_name" defaultValue={lead.last_name || ''} />
@@ -303,8 +413,12 @@ export default function LeadDetailPage() {
               type="url"
               defaultValue={lead.linkedin_url || ''}
             />
+            <Field label="City" name="city" defaultValue={lead.city || ''} />
+            <Field label="State" name="state" defaultValue={lead.state || ''} />
             <Select label="Source" name="source" options={SOURCE_OPTIONS} defaultValue={lead.source} />
             <Select label="Status" name="status" options={STATUS_OPTIONS} defaultValue={lead.status} />
+            <Select label="Campaign" name="campaign" options={CAMPAIGN_OPTIONS} defaultValue={lead.campaign || ''} />
+            <Select label="Pipeline Stage" name="pipeline_stage" options={PIPELINE_STAGES} defaultValue={lead.pipeline_stage || ''} />
             <Field
               label="Tags"
               name="tags"
@@ -314,7 +428,7 @@ export default function LeadDetailPage() {
             />
           </div>
           <TextArea label="Notes" name="notes" defaultValue={lead.notes || ''} rows={4} />
-        </GlassForm>
+        </GlassForm>}
       </GlassCard>
     </main>
   )

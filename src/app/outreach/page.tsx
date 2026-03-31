@@ -1014,6 +1014,7 @@ export default function OutreachPage() {
         <a href="/outreach/templates" className="glass-button text-sm px-4 py-2">Templates</a>
         <a href="/outreach/signals" className="glass-button text-sm px-4 py-2">Signals</a>
         <a href="/outreach/replies" className="glass-button text-sm px-4 py-2">Replies</a>
+        <a href="/outreach/leads/new" className="glass-button glass-button-primary text-sm px-4 py-2 ml-auto">+ Add Lead</a>
       </nav>
 
       {/* Header + Pipeline Health */}
