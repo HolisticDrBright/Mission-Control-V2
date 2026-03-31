@@ -22,6 +22,10 @@ import {
   Grab,
   Search,
   Target,
+  Puzzle,
+  AlertTriangle,
+  Activity,
+  FileText,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/store"
@@ -74,6 +78,7 @@ export function Sidebar() {
         { label: "Viral Reel", href: "/viral-reel", icon: Video },
         { label: "HolisticDrBright SEO", href: "/seo/holistic-dr-bright", icon: Leaf },
         { label: "DSpiked SEO", href: "/seo/dspiked", icon: Zap },
+        { label: "Blog Posts", href: "/blog", icon: FileText },
       ],
     },
     {
@@ -88,11 +93,14 @@ export function Sidebar() {
         { label: "VA Tasks", href: "/va-tasks", icon: Users },
         { label: "ML Ops", href: "/ml-ops", icon: Brain },
         { label: "Notion Sync", href: "/notion", icon: RefreshCw },
+        { label: "Alerts", href: "/alerts", icon: AlertTriangle },
+        { label: "Activity", href: "/activity", icon: Activity },
       ],
     },
     {
       title: "System",
       items: [
+        { label: "Skills", href: "/skills", icon: Puzzle },
         { label: "System Health", href: "/system-health", icon: HeartPulse },
         { label: "Settings", href: "/settings", icon: Settings },
       ],
