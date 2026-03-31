@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useTasks, useProjects, useAgents } from '@/lib/hooks/use-data'
 import {
   DndContext,
@@ -20,11 +22,12 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { LayoutGrid, Columns3, Plus, Sparkles } from 'lucide-react'
+import { LayoutGrid, Columns3, List, Plus, Sparkles } from 'lucide-react'
 import { useStore } from '@/store'
 import GlassCard from '@/components/ui/GlassCard'
 import StatusPill from '@/components/ui/StatusPill'
 import AgentAvatar from '@/components/ui/AgentAvatar'
+import { DataTable, StatusBadge } from '@/components/ui/FormComponents'
 import type { Task, KanbanStatus, Quadrant } from '@/lib/types'
 
 const KANBAN_COLUMNS: { id: KanbanStatus; label: string }[] = [
@@ -74,7 +77,7 @@ const QUADRANTS: {
   },
 ]
 
-function TaskCard({ task, isDragging }: { task: Task; isDragging?: boolean }) {
+function TaskCard({ task, isDragging, linkable = false }: { task: Task; isDragging?: boolean; linkable?: boolean }) {
   const agents = useStore((s) => s.agents)
   const projects = useStore((s) => s.projects)
   const agent = agents.find((a) => a.id === task.agent_id)
@@ -87,7 +90,7 @@ function TaskCard({ task, isDragging }: { task: Task; isDragging?: boolean }) {
     low: 'var(--text-muted)',
   }
 
-  return (
+  const inner = (
     <div
       className="p-3 rounded-xl space-y-2"
       style={{
@@ -131,6 +134,12 @@ function TaskCard({ task, isDragging }: { task: Task; isDragging?: boolean }) {
       )}
     </div>
   )
+
+  if (linkable) {
+    return <Link href={`/tasks/${task.id}`}>{inner}</Link>
+  }
+
+  return inner
 }
 
 function SortableTaskCard({ task }: { task: Task }) {
@@ -144,7 +153,9 @@ function SortableTaskCard({ task }: { task: Task }) {
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <TaskCard task={task} isDragging={isDragging} />
+      <Link href={`/tasks/${task.id}`}>
+        <TaskCard task={task} isDragging={isDragging} />
+      </Link>
     </div>
   )
 }
@@ -270,7 +281,7 @@ function EisenhowerView() {
                     No tasks in this quadrant
                   </p>
                 ) : (
-                  quadrantTasks.map((task) => <TaskCard key={task.id} task={task} />)
+                  quadrantTasks.map((task) => <TaskCard key={task.id} task={task} linkable />)
                 )}
               </div>
             </div>
@@ -278,6 +289,62 @@ function EisenhowerView() {
         )
       })}
     </div>
+  )
+}
+
+function ListView() {
+  const router = useRouter()
+  const tasks = useStore((s) => s.tasks)
+  const projects = useStore((s) => s.projects)
+  const agents = useStore((s) => s.agents)
+
+  const columns = [
+    { key: 'title', label: 'Title' },
+    {
+      key: 'kanban_status',
+      label: 'Status',
+      render: (row: Record<string, unknown>) => <StatusBadge status={row.kanban_status as string} />,
+    },
+    {
+      key: 'priority',
+      label: 'Priority',
+      render: (row: Record<string, unknown>) => <StatusBadge status={row.priority as string} />,
+    },
+    { key: 'type', label: 'Type' },
+    {
+      key: 'project_id',
+      label: 'Project',
+      render: (row: Record<string, unknown>) => {
+        const p = projects.find((pr) => pr.id === row.project_id)
+        return <span>{p ? p.name : '—'}</span>
+      },
+    },
+    {
+      key: 'agent_id',
+      label: 'Agent',
+      render: (row: Record<string, unknown>) => {
+        const a = agents.find((ag) => ag.id === row.agent_id)
+        return <span>{a ? a.name : '—'}</span>
+      },
+    },
+    {
+      key: 'created_at',
+      label: 'Created',
+      render: (row: Record<string, unknown>) => (
+        <span>{new Date(row.created_at as string).toLocaleDateString()}</span>
+      ),
+    },
+  ]
+
+  return (
+    <GlassCard className="p-4" hover={false}>
+      <DataTable
+        columns={columns}
+        rows={tasks as unknown as Record<string, unknown>[]}
+        onRowClick={(row) => router.push(`/tasks/${row.id}`)}
+        emptyMessage="No tasks found"
+      />
+    </GlassCard>
   )
 }
 
@@ -321,7 +388,7 @@ export default function TasksPage() {
   useTasks()
   useProjects()
   useAgents()
-  const [view, setView] = useState<'kanban' | 'eisenhower'>('kanban')
+  const [view, setView] = useState<'kanban' | 'eisenhower' | 'list'>('kanban')
 
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
@@ -342,15 +409,24 @@ export default function TasksPage() {
             <LayoutGrid size={14} />
             Eisenhower
           </button>
+          <button
+            className={`glass-button text-sm flex items-center gap-2 ${view === 'list' ? 'glass-button-primary' : ''}`}
+            onClick={() => setView('list')}
+          >
+            <List size={14} />
+            List
+          </button>
         </div>
-        <button className="glass-button-primary glass-button text-sm flex items-center gap-2">
+        <Link href="/tasks/new" className="glass-button-primary glass-button text-sm flex items-center gap-2">
           <Plus size={14} />
-          New Task
-        </button>
+          Create Task
+        </Link>
       </div>
 
       {/* View */}
-      {view === 'kanban' ? <KanbanView /> : <EisenhowerView />}
+      {view === 'kanban' && <KanbanView />}
+      {view === 'eisenhower' && <EisenhowerView />}
+      {view === 'list' && <ListView />}
 
       {/* Brain Dump */}
       <BrainDump />

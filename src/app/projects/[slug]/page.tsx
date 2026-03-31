@@ -6,13 +6,29 @@ import { useProjects, useTasks, useAgents } from '@/lib/hooks/use-data'
 import { ArrowLeft, Bot, FolderKanban, DollarSign, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { useStore } from '@/store'
+import { createClient } from '@/lib/supabase/client'
 import GlassCard from '@/components/ui/GlassCard'
 import StatusPill from '@/components/ui/StatusPill'
 import AgentAvatar from '@/components/ui/AgentAvatar'
+import { GlassForm, Field, TextArea, Select, Breadcrumbs } from '@/components/ui/FormComponents'
 
 type Params = Promise<{ slug: string }>
 
-const TABS = ['Overview', 'Tasks', 'Agents', 'Runs'] as const
+const TABS = ['Overview', 'Tasks', 'Agents', 'Runs', 'Edit'] as const
+
+const PROJECT_TYPE_OPTIONS = [
+  { value: 'app_dev', label: 'App Dev' },
+  { value: 'seo', label: 'SEO' },
+  { value: 'ugc', label: 'UGC' },
+  { value: 'general', label: 'General' },
+  { value: 'va', label: 'VA' },
+]
+
+const PROJECT_STATUS_OPTIONS = [
+  { value: 'active', label: 'Active' },
+  { value: 'paused', label: 'Paused' },
+  { value: 'archived', label: 'Archived' },
+]
 
 export default function ProjectDetailPage({ params }: { params: Params }) {
   useProjects()
@@ -42,14 +58,7 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
     <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
       {/* Header */}
       <div>
-        <Link
-          href="/projects"
-          className="text-xs flex items-center gap-1 mb-3"
-          style={{ color: 'var(--text-muted)' }}
-        >
-          <ArrowLeft size={12} />
-          Back to Projects
-        </Link>
+        <Breadcrumbs items={[{ label: 'Projects', href: '/projects' }, { label: project.name }]} />
         <div className="flex items-center gap-3">
           <span className="text-2xl">{project.icon}</span>
           <div>
@@ -238,6 +247,33 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
             Run history will appear here as agents complete tasks.
           </p>
+        </GlassCard>
+      )}
+
+      {activeTab === 'Edit' && (
+        <GlassCard className="p-5">
+          <h3 className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>
+            Edit Project
+          </h3>
+          <GlassForm
+            onSubmit={async (data: Record<string, unknown>) => {
+              const supabase = createClient()
+              const { error } = await supabase.from('projects').update(data).eq('id', project.id)
+              if (error) throw new Error(error.message)
+            }}
+            submitLabel="Save Changes"
+          >
+            <Field label="Name" name="name" required defaultValue={project.name} />
+            <TextArea label="Description" name="description" defaultValue={project.description ?? ''} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Select label="Type" name="type" options={PROJECT_TYPE_OPTIONS} defaultValue={project.type} />
+              <Select label="Status" name="status" options={PROJECT_STATUS_OPTIONS} defaultValue={project.status} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field label="Color" name="color" type="color" defaultValue={project.color ?? '#3b82f6'} />
+              <Field label="Icon" name="icon" defaultValue={project.icon ?? ''} />
+            </div>
+          </GlassForm>
         </GlassCard>
       )}
     </div>

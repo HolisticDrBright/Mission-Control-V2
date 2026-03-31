@@ -31,10 +31,10 @@ export default function ProjectsPage() {
         <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
           Projects
         </h2>
-        <button className="glass-button-primary glass-button text-sm flex items-center gap-2">
+        <Link href="/projects/new" className="glass-button-primary glass-button text-sm flex items-center gap-2">
           <Plus size={14} />
-          New Project
-        </button>
+          Create Project
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

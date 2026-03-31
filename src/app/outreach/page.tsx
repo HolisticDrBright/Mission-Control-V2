@@ -1007,6 +1007,15 @@ export default function OutreachPage() {
 
   return (
     <div className="space-y-6 pb-8">
+      {/* Sub-nav tabs */}
+      <nav aria-label="Outreach sections" className="flex items-center gap-1 p-1 rounded-xl" style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
+        <a href="/outreach" className="glass-button glass-button-primary text-sm px-4 py-2">Overview</a>
+        <a href="/outreach/leads" className="glass-button text-sm px-4 py-2">Leads</a>
+        <a href="/outreach/templates" className="glass-button text-sm px-4 py-2">Templates</a>
+        <a href="/outreach/signals" className="glass-button text-sm px-4 py-2">Signals</a>
+        <a href="/outreach/replies" className="glass-button text-sm px-4 py-2">Replies</a>
+      </nav>
+
       {/* Header + Pipeline Health */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
