@@ -4,8 +4,6 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   TrendingUp, FileText, Search, Globe, BarChart3, RefreshCw, ExternalLink, Plus,
 } from 'lucide-react'
-import GlassCard from '@/components/ui/GlassCard'
-import { StatusBadge } from '@/components/ui/FormComponents'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -107,15 +105,15 @@ export default function SEOAutomationPage() {
         <h1 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>SEO Automation</h1>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[1, 2, 3, 4, 5].map(i => (
-            <GlassCard key={i} className="p-4 animate-pulse">
+            <div key={i} className="glass-card p-4 animate-pulse">
               <div className="h-3 w-16 rounded bg-white/5 mb-2" />
               <div className="h-6 w-12 rounded bg-white/5" />
-            </GlassCard>
+            </div>
           ))}
         </div>
-        <GlassCard className="p-8">
+        <div className="glass-card p-8">
           <p className="text-sm text-center" style={{ color: 'var(--text-muted)' }}>Loading SEO data...</p>
-        </GlassCard>
+        </div>
       </div>
     )
   }
@@ -145,41 +143,41 @@ export default function SEOAutomationPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <GlassCard className="p-4">
+        <div className="glass-card p-4">
           <div className="flex items-center gap-2 mb-1">
             <FileText size={13} style={{ color: 'var(--accent-blue)' }} />
             <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Total Posts</span>
           </div>
           <p className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>{posts.length}</p>
-        </GlassCard>
-        <GlassCard className="p-4">
+        </div>
+        <div className="glass-card p-4">
           <div className="flex items-center gap-2 mb-1">
             <Globe size={13} style={{ color: 'var(--accent-emerald)' }} />
             <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Published</span>
           </div>
           <p className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>{published.length}</p>
-        </GlassCard>
-        <GlassCard className="p-4">
+        </div>
+        <div className="glass-card p-4">
           <div className="flex items-center gap-2 mb-1">
             <FileText size={13} style={{ color: 'var(--accent-amber)' }} />
             <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Drafts</span>
           </div>
           <p className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>{drafts.length}</p>
-        </GlassCard>
-        <GlassCard className="p-4">
+        </div>
+        <div className="glass-card p-4">
           <div className="flex items-center gap-2 mb-1">
             <Search size={13} style={{ color: 'var(--accent-cyan)' }} />
             <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Keywords</span>
           </div>
           <p className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>{keywords.length}</p>
-        </GlassCard>
-        <GlassCard className="p-4">
+        </div>
+        <div className="glass-card p-4">
           <div className="flex items-center gap-2 mb-1">
             <BarChart3 size={13} style={{ color: 'var(--accent-purple)' }} />
             <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Total Words</span>
           </div>
           <p className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>{totalWords.toLocaleString()}</p>
-        </GlassCard>
+        </div>
       </div>
 
       {/* View toggle */}
@@ -202,7 +200,7 @@ export default function SEOAutomationPage() {
 
       {/* Blog Posts Table */}
       {view === 'posts' && (
-        <GlassCard className="p-5">
+        <div className="glass-card p-5">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -235,7 +233,7 @@ export default function SEOAutomationPage() {
                           )}
                         </div>
                       </td>
-                      <td className="py-2.5 px-3"><StatusBadge status={post.status} /></td>
+                      <td className="py-2.5 px-3"><span className="text-xs px-2 py-0.5 rounded" style={{ background: post.status === 'published' ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.06)', color: post.status === 'published' ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>{post.status}</span></td>
                       <td className="py-2.5 px-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{post.target_keyword || '—'}</td>
                       <td className="text-right py-2.5 px-3 font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{post.word_count?.toLocaleString() || '—'}</td>
                       <td className="text-right py-2.5 px-3">
@@ -250,12 +248,12 @@ export default function SEOAutomationPage() {
               </tbody>
             </table>
           </div>
-        </GlassCard>
+        </div>
       )}
 
       {/* Keywords Table */}
       {view === 'keywords' && (
-        <GlassCard className="p-5">
+        <div className="glass-card p-5">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -295,7 +293,7 @@ export default function SEOAutomationPage() {
               </tbody>
             </table>
           </div>
-        </GlassCard>
+        </div>
       )}
     </div>
   )
