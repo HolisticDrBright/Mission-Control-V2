@@ -30,9 +30,7 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const host = request.headers.get('host') || 'localhost:3001'
-  const protocol = host.includes('localhost') ? 'http' : (request.headers.get('x-forwarded-proto') || 'http')
-  const redirectUri = `${protocol}://${host}/api/oauth/google/callback`
+  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI || 'https://api.holysticsolutions.com/api/oauth/google/callback'
 
   try {
     // Exchange code for tokens

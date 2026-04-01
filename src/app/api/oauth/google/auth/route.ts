@@ -7,11 +7,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'GOOGLE_CLIENT_ID not configured' }, { status: 503 })
   }
 
-  // Use the Host header so it works via SSH tunnel (localhost:3002)
-  // or direct access (137.184.84.143:3001)
-  const host = request.headers.get('host') || 'localhost:3001'
-  const protocol = host.includes('localhost') ? 'http' : (request.headers.get('x-forwarded-proto') || 'http')
-  const redirectUri = `${protocol}://${host}/api/oauth/google/callback`
+  // Fixed redirect URI — must match Google Console exactly
+  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI || 'https://api.holysticsolutions.com/api/oauth/google/callback'
 
   const params = new URLSearchParams({
     client_id: clientId,
