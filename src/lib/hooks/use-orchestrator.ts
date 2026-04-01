@@ -114,13 +114,22 @@ export function useSeoData(refreshMs = 30000) {
         supabase.from('mc_seo_trends').select('*').order('discovered_at', { ascending: false }).limit(50),
         supabase.from('mc_seo_keywords').select('*').order('validation_score', { ascending: false }).limit(50),
         supabase.from('mc_seo_articles').select('*').order('created_at', { ascending: false }).limit(50),
-      ]).then(([trendsRes, keywordsRes, articlesRes]) => {
+        // Also fetch from the real blog_posts + keywords tables as fallback
+        supabase.from('blog_posts').select('*').order('created_at', { ascending: false }).limit(50),
+        supabase.from('keywords').select('*').order('created_at', { ascending: false }).limit(50),
+      ]).then(([trendsRes, keywordsRes, articlesRes, blogPostsRes, realKeywordsRes]) => {
+        // Use orchestrator tables if they have data, otherwise fall back to blog_posts/keywords
+        const trends = trendsRes.data?.length ? trendsRes.data : []
+        const keywords = keywordsRes.data?.length ? keywordsRes.data : (realKeywordsRes.data || [])
+        const articles = articlesRes.data?.length ? articlesRes.data : (blogPostsRes.data || []).map((p: Record<string, unknown>) => ({
+          ...p,
+          keyword: p.target_keyword || '',
+          validation_score: p.seo_score || 0,
+          status: p.status || 'published',
+        }))
+
         return {
-          data: {
-            trends: trendsRes.data || [],
-            keywords: keywordsRes.data || [],
-            articles: articlesRes.data || [],
-          },
+          data: { trends, keywords, articles },
           error: trendsRes.error || keywordsRes.error || articlesRes.error,
         }
       })
