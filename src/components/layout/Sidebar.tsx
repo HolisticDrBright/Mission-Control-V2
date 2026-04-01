@@ -22,6 +22,7 @@ import {
   Grab,
   Search,
   Target,
+  MessageCircle,
   Puzzle,
   AlertTriangle,
   Activity,
@@ -96,6 +97,7 @@ export function Sidebar() {
     {
       title: "Operations",
       items: [
+        { label: "Chat", href: "/chat", icon: MessageCircle },
         { label: "VA Tasks", href: "/va-tasks", icon: Users },
         { label: "ML Ops", href: "/ml-ops", icon: Brain },
         { label: "Notion Sync", href: "/notion", icon: RefreshCw },

@@ -27,6 +27,7 @@ const pathTitles: Record<string, string> = {
   "/outreach/signals": "Outreach Signals",
   "/outreach/replies": "Outreach Replies",
   "/cashclaw": "CashClaw",
+  "/chat": "Chat",
   "/system-health": "System Health",
   "/blog": "Blog Posts",
   "/alerts": "Alerts",
