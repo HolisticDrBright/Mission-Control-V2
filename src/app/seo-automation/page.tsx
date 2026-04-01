@@ -174,15 +174,19 @@ const STAGE_LABELS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 export default function SEOAutomationPage() {
-  const { data: seoData, loading, error, refetch } = useSeoData()
-  const { data: stateData } = useOrchestratorState()
+  const { data: seoData, loading, error, refetch } = useSeoData(60000) // 60s refresh instead of 30s
+  const { data: stateData } = useOrchestratorState(60000)
   const [trendSort, setTrendSort] = useState<'desc' | 'asc'>('desc')
   const [kwFilter, setKwFilter] = useState<string>('all')
   const [refreshing, setRefreshing] = useState(false)
+  const [hasLoaded, setHasLoaded] = useState(false)
+
+  // Track initial load
+  if (!hasLoaded && !loading) setHasLoaded(true)
 
   // Build a combined data object that matches the old SEOData shape
   const seoState = stateData.seo as Record<string, unknown> | null
-  const data: SEOData | null = (seoData.trends.length > 0 || seoData.keywords.length > 0 || seoData.articles.length > 0 || seoState)
+  const data: SEOData | null = useMemo(() => (seoData.trends.length > 0 || seoData.keywords.length > 0 || seoData.articles.length > 0 || seoState)
     ? {
         system_status: (seoState?.system_status as SEOData['system_status']) ?? 'offline',
         articles_published_total: (seoState?.articles_published_total as number) ?? 0,
@@ -202,7 +206,24 @@ export default function SEOAutomationPage() {
           avg_cost_per_article: 0, articles_page_one: 0,
         },
       }
-    : null
+    : null, [seoData, seoState])
+
+  // Show skeleton only on first load, not on refreshes
+  if (loading && !hasLoaded) {
+    return (
+      <div className="p-6 max-w-[1600px] mx-auto">
+        <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>SEO Automation</h2>
+        <div className="grid grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <GlassCard key={i} className="p-5 animate-pulse">
+              <div className="h-3 w-20 rounded bg-white/5 mb-3" />
+              <div className="h-8 w-16 rounded bg-white/5" />
+            </GlassCard>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   const handleRefresh = async () => {
     setRefreshing(true)
