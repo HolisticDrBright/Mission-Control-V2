@@ -10,6 +10,7 @@ import { authenticate } from '@/lib/api/auth'
 
 const SeoFilterSchema = z.object({
   site_id: z.string().uuid().optional(),
+  domain: z.string().optional(),
 })
 
 // ---------------------------------------------------------------------------
@@ -24,6 +25,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const filterParse = SeoFilterSchema.safeParse({
     site_id: searchParams.get('site_id') ?? undefined,
+    domain: searchParams.get('domain') ?? undefined,
   })
 
   if (!filterParse.success) {
@@ -44,6 +46,11 @@ export async function GET(request: NextRequest) {
   if (filterParse.data.site_id) {
     postsQuery = postsQuery.eq('site_id', filterParse.data.site_id)
     keywordsQuery = keywordsQuery.eq('site_id', filterParse.data.site_id)
+  }
+
+  // Filter by domain in URL (e.g., ?domain=holisticdrbright.com)
+  if (filterParse.data.domain) {
+    postsQuery = postsQuery.ilike('url', `%${filterParse.data.domain}%`)
   }
 
   const [postsResult, keywordsResult] = await Promise.all([postsQuery, keywordsQuery])

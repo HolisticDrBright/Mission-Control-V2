@@ -52,6 +52,11 @@ function getPostStatus(p: BlogPost): string {
   return 'draft'
 }
 
+function getPostDomain(p: BlogPost): string {
+  const url = p.url || p.published_url || ''
+  try { return new URL(url).hostname } catch { return '—' }
+}
+
 function timeAgo(dateStr: string | null): string {
   if (!dateStr) return 'Unknown'
   const s = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
@@ -217,6 +222,7 @@ export default function SEOAutomationPage() {
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                   <th className="text-left py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Title</th>
+                  <th className="text-left py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Site</th>
                   <th className="text-left py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Status</th>
                   {posts.some(p => p.word_count) && <th className="text-right py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Words</th>}
                   <th className="text-left py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Published</th>
@@ -225,7 +231,7 @@ export default function SEOAutomationPage() {
               </thead>
               <tbody>
                 {posts.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>No articles found. Sync from WordPress to populate.</td></tr>
+                  <tr><td colSpan={6} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>No articles found. Sync from WordPress to populate.</td></tr>
                 ) : (view === 'overview' ? posts.slice(0, 20) : posts).map(p => {
                   const postUrl = getPostUrl(p)
                   const status = getPostStatus(p)
@@ -233,6 +239,12 @@ export default function SEOAutomationPage() {
                     <tr key={p.id} className="border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
                       <td className="py-2.5 px-3 max-w-[400px]">
                         <span className="truncate block font-medium" style={{ color: 'var(--text-primary)' }}>{p.title}</span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="text-xs px-1.5 py-0.5 rounded" style={{
+                          background: getPostDomain(p).includes('holistic') ? 'rgba(16,185,129,0.1)' : 'rgba(6,182,212,0.1)',
+                          color: getPostDomain(p).includes('holistic') ? 'var(--accent-emerald)' : 'var(--accent-cyan)',
+                        }}>{getPostDomain(p).replace('www.','').split('.')[0]}</span>
                       </td>
                       <td className="py-2.5 px-3">
                         <span className="text-xs px-2 py-0.5 rounded" style={{
@@ -280,7 +292,7 @@ export default function SEOAutomationPage() {
               </thead>
               <tbody>
                 {keywords.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>No keywords tracked yet.</td></tr>
+                  <tr><td colSpan={6} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>No keywords tracked yet.</td></tr>
                 ) : keywords.map(kw => (
                   <tr key={kw.id} className="border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
                     <td className="py-2.5 px-3 font-medium" style={{ color: 'var(--text-primary)' }}>{kw.keyword}</td>

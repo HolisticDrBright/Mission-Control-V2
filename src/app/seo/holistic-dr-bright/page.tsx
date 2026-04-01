@@ -37,7 +37,7 @@ export default function HolisticDrBrightSEOPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/seo')
+      const res = await fetch('/api/seo?domain=holisticdrbright.com')
       if (res.ok) {
         const json = await res.json()
         setPosts(Array.isArray(json.data?.blog_posts) ? json.data.blog_posts : [])
