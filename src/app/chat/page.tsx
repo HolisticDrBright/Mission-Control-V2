@@ -29,6 +29,7 @@ const SENDER_CONFIG: Record<string, { label: string; color: string; bg: string }
   brandon: { label: 'Brandon', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
   openclaw: { label: 'OpenClaw', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
   cowork: { label: 'Cowork', color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' },
+  atlas: { label: 'Atlas', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
   system: { label: 'System', color: '#6b7280', bg: 'rgba(107,114,128,0.12)' },
 }
 

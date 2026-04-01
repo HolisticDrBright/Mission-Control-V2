@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'sender and message are required' }, { status: 400 })
   }
 
-  const validSenders = ['brandon', 'openclaw', 'cowork', 'system']
+  const validSenders = ['brandon', 'openclaw', 'cowork', 'atlas', 'system']
   if (!validSenders.includes(body.sender)) {
     return NextResponse.json({ error: `Invalid sender. Must be one of: ${validSenders.join(', ')}` }, { status: 400 })
   }
