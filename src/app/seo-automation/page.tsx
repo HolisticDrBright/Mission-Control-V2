@@ -1,310 +1,158 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import {
-  TrendingUp, FileText, Search, Globe, BarChart3, RefreshCw, ExternalLink,
-  Zap, PenTool, CheckCircle2, AlertTriangle, Clock,
-} from 'lucide-react'
-
-// ---------------------------------------------------------------------------
-// Types — matches ACTUAL blog_posts table on the droplet
-// ---------------------------------------------------------------------------
-
-interface BlogPost {
-  id: string
-  title: string
-  url: string | null           // NOT published_url
-  published_at: string | null
-  created_at: string
-  site_id: string | null
-  article_id: string | null
-  wordpress_post_id: string | null
-  // These may or may not exist depending on the table version
-  slug?: string | null
-  status?: string | null
-  word_count?: number | null
-  seo_score?: number | null
-  target_keyword?: string | null
-  meta_description?: string | null
-  published_url?: string | null  // fallback
-}
-
-interface Keyword {
-  id: string
-  keyword: string
-  search_volume: number | null
-  difficulty: number | null
-  current_rank: number | null
-  target_rank: number | null
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function getPostUrl(p: BlogPost): string | null {
-  return p.url || p.published_url || null
-}
-
-function getPostStatus(p: BlogPost): string {
-  if (p.status) return p.status
-  if (p.published_at || p.url) return 'published'
-  return 'draft'
-}
-
-function getPostDomain(p: BlogPost): string {
-  const url = p.url || p.published_url || ''
-  try { return new URL(url).hostname } catch { return '—' }
-}
-
-function timeAgo(dateStr: string | null): string {
-  if (!dateStr) return 'Unknown'
-  const s = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
-  if (s < 60) return 'Just now'
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
-  return `${Math.floor(s / 86400)}d ago`
-}
-
-function DifficultyBadge({ value }: { value: number | null }) {
-  if (value === null || value === undefined) return <span style={{ color: 'var(--text-muted)' }}>—</span>
-  const color = value > 70 ? 'var(--accent-rose)' : value > 40 ? 'var(--accent-amber)' : 'var(--accent-emerald)'
-  const label = value > 70 ? 'Hard' : value > 40 ? 'Medium' : 'Easy'
-  return (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ background: `color-mix(in srgb, ${color} 15%, transparent)`, color }}>
-      {value} · {label}
-    </span>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+import { useState, useEffect } from 'react'
 
 export default function SEOAutomationPage() {
-  const [posts, setPosts] = useState<BlogPost[]>([])
-  const [keywords, setKeywords] = useState<Keyword[]>([])
-  const [loading, setLoading] = useState(true)
+  const [posts, setPosts] = useState<Array<Record<string, unknown>>>([])
+  const [keywords, setKeywords] = useState<Array<Record<string, unknown>>>([])
   const [error, setError] = useState<string | null>(null)
-  const [view, setView] = useState<'overview' | 'posts' | 'keywords'>('overview')
+  const [loading, setLoading] = useState(true)
+  const [view, setView] = useState<'posts' | 'keywords'>('posts')
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/seo')
-      if (!res.ok) throw new Error(`API returned ${res.status}`)
-      const json = await res.json()
-      const blogPosts = json.data?.blog_posts
-      const kw = json.data?.keywords
-      setPosts(Array.isArray(blogPosts) ? blogPosts : [])
-      setKeywords(Array.isArray(kw) ? kw : [])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load SEO data')
-    } finally {
-      setLoading(false)
-    }
+  useEffect(() => {
+    fetch('/api/seo')
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json()
+      })
+      .then(json => {
+        setPosts(Array.isArray(json?.data?.blog_posts) ? json.data.blog_posts : [])
+        setKeywords(Array.isArray(json?.data?.keywords) ? json.data.keywords : [])
+      })
+      .catch(err => setError(String(err)))
+      .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
-
-  const stats = useMemo(() => {
-    const published = posts.filter(p => getPostStatus(p) === 'published')
-    const withUrl = posts.filter(p => getPostUrl(p))
-    const latest = [...published].sort((a, b) => new Date(b.published_at || b.created_at).getTime() - new Date(a.published_at || a.created_at).getTime())[0]
-    const totalWords = posts.reduce((s, p) => s + (p.word_count || 0), 0)
-
-    return { total: posts.length, published: published.length, withUrl: withUrl.length, latest, totalWords }
-  }, [posts])
-
-  if (loading) {
-    return (
-      <div className="p-6 max-w-[1600px] mx-auto space-y-6">
-        <h1 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>SEO Automation</h1>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="glass-card p-5 animate-pulse"><div className="h-3 w-20 rounded bg-white/5 mb-3" /><div className="h-8 w-16 rounded bg-white/5" /></div>
-          ))}
-        </div>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading SEO data...</p>
-      </div>
-    )
+  const getUrl = (p: Record<string, unknown>) => (p.url as string) || (p.published_url as string) || null
+  const getStatus = (p: Record<string, unknown>) => (p.status as string) || (p.url ? 'published' : 'draft')
+  const getDomain = (p: Record<string, unknown>) => {
+    const url = getUrl(p)
+    if (!url) return '—'
+    try { return new URL(url).hostname.replace('www.', '') } catch { return '—' }
   }
 
+  if (loading) return (
+    <div style={{ padding: 24, color: '#eee', background: 'transparent' }}>
+      <h1 style={{ fontSize: 20, marginBottom: 16, fontWeight: 600 }}>SEO Automation</h1>
+      <p style={{ color: '#888' }}>Loading SEO data...</p>
+    </div>
+  )
+
+  const published = posts.filter(p => getStatus(p) === 'published')
+
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--accent-emerald)' }}>
-            <TrendingUp size={18} />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>SEO Automation</h1>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{stats.total} articles · {keywords.length} keywords tracked</p>
-          </div>
+    <div style={{ padding: 24, color: '#eee', background: 'transparent', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>SEO Automation</h1>
+          <p style={{ fontSize: 12, color: '#888', margin: '4px 0 0' }}>{posts.length} articles · {keywords.length} keywords</p>
         </div>
-        <button className="glass-button text-sm flex items-center gap-2" onClick={fetchData}>
-          <RefreshCw size={14} /> Refresh
-        </button>
+        <button className="glass-button" style={{ fontSize: 13, padding: '6px 16px' }} onClick={() => window.location.reload()}>Refresh</button>
       </div>
 
-      {/* Error */}
       {error && (
-        <div className="p-3 rounded-xl text-sm flex items-center gap-2" style={{ background: 'rgba(244,63,94,0.1)', color: 'var(--accent-rose)' }}>
-          <AlertTriangle size={14} /> {error}
+        <div style={{ background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.3)', padding: 12, borderRadius: 12, marginBottom: 16, fontSize: 13, color: '#f43f5e' }}>
+          Error: {error}
         </div>
       )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="glass-card p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <FileText size={14} style={{ color: 'var(--accent-blue)' }} />
-            <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>Total Articles</span>
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+        {[
+          { label: 'Total Articles', value: posts.length, color: '#3b82f6' },
+          { label: 'Published', value: published.length, color: '#10b981' },
+          { label: 'Keywords', value: keywords.length, color: '#f59e0b' },
+          { label: 'Total Words', value: posts.reduce((s, p) => s + ((p.word_count as number) || 0), 0).toLocaleString(), color: '#8b5cf6' },
+        ].map(s => (
+          <div key={s.label} className="glass-card" style={{ padding: 16 }}>
+            <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#888', margin: '0 0 4px' }}>{s.label}</p>
+            <p style={{ fontSize: 24, fontWeight: 600, margin: 0, color: '#eee' }}>{s.value}</p>
           </div>
-          <p className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>{stats.total}</p>
-        </div>
-        <div className="glass-card p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <CheckCircle2 size={14} style={{ color: 'var(--accent-emerald)' }} />
-            <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>Published</span>
-          </div>
-          <p className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>{stats.published}</p>
-        </div>
-        <div className="glass-card p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Globe size={14} style={{ color: 'var(--accent-cyan)' }} />
-            <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>With Live URL</span>
-          </div>
-          <p className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>{stats.withUrl}</p>
-        </div>
-        <div className="glass-card p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Search size={14} style={{ color: 'var(--accent-amber)' }} />
-            <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>Keywords Tracked</span>
-          </div>
-          <p className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>{keywords.length}</p>
-        </div>
-      </div>
-
-      {/* Latest published */}
-      {stats.latest && (
-        <div className="glass-card p-4 flex items-center gap-3" style={{ borderLeft: '3px solid var(--accent-emerald)' }}>
-          <CheckCircle2 size={14} style={{ color: 'var(--accent-emerald)' }} />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Latest published</p>
-            <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{stats.latest.title}</p>
-          </div>
-          <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>{timeAgo(stats.latest.published_at)}</span>
-          {getPostUrl(stats.latest) && (
-            <a href={getPostUrl(stats.latest)!} target="_blank" rel="noopener noreferrer" className="shrink-0">
-              <ExternalLink size={14} style={{ color: 'var(--accent-blue)' }} />
-            </a>
-          )}
-        </div>
-      )}
-
-      {/* View Tabs */}
-      <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ background: 'rgba(255,255,255,0.04)' }}>
-        {(['overview', 'posts', 'keywords'] as const).map(v => (
-          <button key={v} className="px-4 py-1.5 rounded-lg text-sm capitalize" style={{ background: view === v ? 'var(--glass-bg-hover)' : 'transparent', color: view === v ? 'var(--text-primary)' : 'var(--text-muted)' }} onClick={() => setView(v)}>
-            {v === 'overview' ? `Articles (${posts.length})` : v === 'posts' ? 'All Articles' : `Keywords (${keywords.length})`}
-          </button>
         ))}
       </div>
 
-      {/* Articles Table */}
-      {(view === 'overview' || view === 'posts') && (
-        <div className="glass-card p-5">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                  <th className="text-left py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Title</th>
-                  <th className="text-left py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Site</th>
-                  <th className="text-left py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Status</th>
-                  {posts.some(p => p.word_count) && <th className="text-right py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Words</th>}
-                  <th className="text-left py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Published</th>
-                  <th className="text-left py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Link</th>
-                </tr>
-              </thead>
-              <tbody>
-                {posts.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>No articles found. Sync from WordPress to populate.</td></tr>
-                ) : (view === 'overview' ? posts.slice(0, 20) : posts).map(p => {
-                  const postUrl = getPostUrl(p)
-                  const status = getPostStatus(p)
-                  return (
-                    <tr key={p.id} className="border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                      <td className="py-2.5 px-3 max-w-[400px]">
-                        <span className="truncate block font-medium" style={{ color: 'var(--text-primary)' }}>{p.title}</span>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span className="text-xs px-1.5 py-0.5 rounded" style={{
-                          background: getPostDomain(p).includes('holistic') ? 'rgba(16,185,129,0.1)' : 'rgba(6,182,212,0.1)',
-                          color: getPostDomain(p).includes('holistic') ? 'var(--accent-emerald)' : 'var(--accent-cyan)',
-                        }}>{getPostDomain(p).replace('www.','').split('.')[0]}</span>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span className="text-xs px-2 py-0.5 rounded" style={{
-                          background: status === 'published' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-                          color: status === 'published' ? 'var(--accent-emerald)' : 'var(--accent-amber)',
-                        }}>{status}</span>
-                      </td>
-                      {posts.some(pp => pp.word_count) && (
-                        <td className="text-right py-2.5 px-3 font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>
-                          {p.word_count?.toLocaleString() || '—'}
-                        </td>
-                      )}
-                      <td className="py-2.5 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {p.published_at ? new Date(p.published_at).toLocaleDateString() : '—'}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        {postUrl ? (
-                          <a href={postUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs" style={{ color: 'var(--accent-blue)' }}>
-                            <ExternalLink size={11} /> View
-                          </a>
-                        ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+      {/* View toggle */}
+      <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 12, background: 'rgba(255,255,255,0.04)', width: 'fit-content', marginBottom: 20 }}>
+        <button style={{ padding: '6px 16px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', background: view === 'posts' ? 'rgba(255,255,255,0.1)' : 'transparent', color: view === 'posts' ? '#eee' : '#888' }} onClick={() => setView('posts')}>Articles ({posts.length})</button>
+        <button style={{ padding: '6px 16px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', background: view === 'keywords' ? 'rgba(255,255,255,0.1)' : 'transparent', color: view === 'keywords' ? '#eee' : '#888' }} onClick={() => setView('keywords')}>Keywords ({keywords.length})</button>
+      </div>
+
+      {/* Articles table */}
+      {view === 'posts' && (
+        <div className="glass-card" style={{ padding: 20 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Title</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Site</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Status</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Words</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Published</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Link</th>
+              </tr>
+            </thead>
+            <tbody>
+              {posts.length === 0 ? (
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#666' }}>No articles found</td></tr>
+              ) : posts.map((p, i) => {
+                const url = getUrl(p)
+                const domain = getDomain(p)
+                const status = getStatus(p)
+                return (
+                  <tr key={(p.id as string) || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '10px 12px', maxWidth: 350 }}>
+                      <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{p.title as string}</span>
+                    </td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: domain.includes('holistic') ? 'rgba(16,185,129,0.12)' : 'rgba(6,182,212,0.12)', color: domain.includes('holistic') ? '#10b981' : '#06b6d4' }}>{domain.split('.')[0]}</span>
+                    </td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: status === 'published' ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)', color: status === 'published' ? '#10b981' : '#f59e0b' }}>{status}</span>
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '10px 12px', fontFamily: 'monospace', fontSize: 12, color: '#aaa' }}>{(p.word_count as number)?.toLocaleString() || '—'}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#888' }}>{p.published_at ? new Date(p.published_at as string).toLocaleDateString() : '—'}</td>
+                    <td style={{ padding: '10px 12px' }}>{url ? <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', fontSize: 12 }}>View ↗</a> : <span style={{ color: '#555' }}>—</span>}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {/* Keywords Table */}
+      {/* Keywords table */}
       {view === 'keywords' && (
-        <div className="glass-card p-5">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                  <th className="text-left py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Keyword</th>
-                  <th className="text-right py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Search Volume</th>
-                  <th className="text-right py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Difficulty</th>
-                  <th className="text-right py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Current Rank</th>
-                  <th className="text-right py-2 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>Target</th>
+        <div className="glass-card" style={{ padding: 20 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Keyword</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Volume</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Difficulty</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Rank</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Target</th>
+              </tr>
+            </thead>
+            <tbody>
+              {keywords.length === 0 ? (
+                <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: '#666' }}>No keywords tracked</td></tr>
+              ) : keywords.map((kw, i) => (
+                <tr key={(kw.id as string) || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 500 }}>{kw.keyword as string}</td>
+                  <td style={{ textAlign: 'right', padding: '10px 12px', color: '#aaa' }}>{(kw.search_volume as number)?.toLocaleString() || '—'}</td>
+                  <td style={{ textAlign: 'right', padding: '10px 12px' }}>
+                    {kw.difficulty != null ? (
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: (kw.difficulty as number) > 70 ? 'rgba(244,63,94,0.12)' : (kw.difficulty as number) > 40 ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.12)', color: (kw.difficulty as number) > 70 ? '#f43f5e' : (kw.difficulty as number) > 40 ? '#f59e0b' : '#10b981' }}>
+                        {kw.difficulty as number}
+                      </span>
+                    ) : <span style={{ color: '#555' }}>—</span>}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '10px 12px', fontFamily: 'monospace', color: (kw.current_rank as number) && (kw.current_rank as number) <= 10 ? '#10b981' : '#eee' }}>{(kw.current_rank as number) ?? '—'}</td>
+                  <td style={{ textAlign: 'right', padding: '10px 12px', color: '#888' }}>{(kw.target_rank as number) ?? '—'}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {keywords.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>No keywords tracked yet.</td></tr>
-                ) : keywords.map(kw => (
-                  <tr key={kw.id} className="border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                    <td className="py-2.5 px-3 font-medium" style={{ color: 'var(--text-primary)' }}>{kw.keyword}</td>
-                    <td className="text-right py-2.5 px-3" style={{ color: 'var(--text-secondary)' }}>{kw.search_volume?.toLocaleString() || '—'}</td>
-                    <td className="text-right py-2.5 px-3"><DifficultyBadge value={kw.difficulty} /></td>
-                    <td className="text-right py-2.5 px-3 font-mono" style={{ color: kw.current_rank && kw.current_rank <= 10 ? 'var(--accent-emerald)' : 'var(--text-primary)' }}>{kw.current_rank ?? '—'}</td>
-                    <td className="text-right py-2.5 px-3" style={{ color: 'var(--text-muted)' }}>{kw.target_rank ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
