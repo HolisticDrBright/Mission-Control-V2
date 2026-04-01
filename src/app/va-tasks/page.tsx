@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Users, Calendar as CalIcon } from 'lucide-react'
+import { Plus, Users, Calendar as CalIcon, X, ExternalLink, Clock } from 'lucide-react'
 import GlassCard from '@/components/ui/GlassCard'
 import StatusPill from '@/components/ui/StatusPill'
 import { GlassForm, Field, TextArea, Select } from '@/components/ui/FormComponents'
@@ -24,7 +24,12 @@ interface VATask {
   due_date: string | null
   project_id: string | null
   notes: string | null
+  recurring: boolean
+  recurrence_rule: string | null
+  attachments: unknown[]
+  completed_at: string | null
   created_at: string
+  updated_at: string
 }
 
 const PRIORITY_OPTIONS = [
@@ -40,6 +45,7 @@ export default function VATasksPage() {
   const [tasks, setTasks] = useState<VATask[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<VATask | null>(null)
 
   const fetchTasks = useCallback(async () => {
     setLoading(true)
@@ -173,12 +179,13 @@ export default function VATasksPage() {
                   colTasks.map((task) => (
                     <div
                       key={task.id}
-                      className="p-3 rounded-xl"
+                      className="p-3 rounded-xl cursor-pointer transition-all hover:border-[var(--glass-border-strong)]"
                       style={{
-                        background: 'rgba(255,255,255,0.03)',
-                        border: `1px solid ${task.status === 'waiting_on_you' ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.06)'}`,
+                        background: selectedTask?.id === task.id ? 'var(--glass-bg-active)' : 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${task.status === 'waiting_on_you' ? 'rgba(245,158,11,0.2)' : selectedTask?.id === task.id ? 'var(--accent-blue)' : 'rgba(255,255,255,0.06)'}`,
                         backdropFilter: 'blur(12px)',
                       }}
+                      onClick={() => setSelectedTask(task)}
                     >
                       <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
                         {task.title}
@@ -230,6 +237,140 @@ export default function VATasksPage() {
           )
         })}
       </div>
+
+      {/* Slide-out detail panel */}
+      {selectedTask && (
+        <div
+          className="fixed inset-0 z-50 flex justify-end"
+          onClick={(e) => { if (e.target === e.currentTarget) setSelectedTask(null) }}
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/40" />
+
+          {/* Panel */}
+          <div
+            className="relative w-full max-w-lg h-full overflow-y-auto"
+            style={{
+              background: 'rgba(12, 16, 28, 0.95)',
+              backdropFilter: 'blur(40px)',
+              borderLeft: '1px solid var(--glass-border)',
+            }}
+          >
+            <div className="p-6 space-y-5">
+              {/* Header */}
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+                    {selectedTask.title}
+                  </h2>
+                  <div className="flex items-center gap-2 mt-1">
+                    <StatusPill status={selectedTask.status} size="sm" />
+                    <StatusPill status={selectedTask.priority} size="sm" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={`/va-tasks/${selectedTask.id}`}
+                    className="glass-button p-2"
+                    title="Open full page"
+                  >
+                    <ExternalLink size={14} />
+                  </a>
+                  <button
+                    className="glass-button p-2"
+                    onClick={() => setSelectedTask(null)}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick status change */}
+              <div>
+                <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Change Status</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { value: 'pending', label: 'Pending' },
+                    { value: 'in_progress', label: 'In Progress' },
+                    { value: 'waiting_on_you', label: 'Waiting' },
+                    { value: 'review', label: 'Review' },
+                    { value: 'done', label: 'Done' },
+                  ].map((s) => (
+                    <button
+                      key={s.value}
+                      className={`text-xs px-2.5 py-1 rounded-lg glass-button ${selectedTask.status === s.value ? 'glass-button-primary' : ''}`}
+                      disabled={selectedTask.status === s.value}
+                      onClick={async () => {
+                        await handleStatusChange(selectedTask.id, s.value)
+                        setSelectedTask({ ...selectedTask, status: s.value })
+                      }}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Detail fields */}
+              <GlassCard className="p-4" hover={false}>
+                <dl className="space-y-3">
+                  {selectedTask.description && (
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>Description</dt>
+                      <dd className="text-sm mt-1 whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>{selectedTask.description}</dd>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>Assigned To</dt>
+                      <dd className="text-sm mt-0.5 flex items-center gap-1" style={{ color: 'var(--text-primary)' }}>
+                        <Users size={11} /> {selectedTask.assigned_to || '—'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>Priority</dt>
+                      <dd className="text-sm mt-0.5"><StatusPill status={selectedTask.priority} size="sm" /></dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>Due Date</dt>
+                      <dd className="text-sm mt-0.5 flex items-center gap-1" style={{ color: 'var(--text-primary)' }}>
+                        <CalIcon size={11} /> {selectedTask.due_date ? new Date(selectedTask.due_date).toLocaleDateString() : '—'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>Created</dt>
+                      <dd className="text-sm mt-0.5 flex items-center gap-1" style={{ color: 'var(--text-primary)' }}>
+                        <Clock size={11} /> {new Date(selectedTask.created_at).toLocaleDateString()}
+                      </dd>
+                    </div>
+                  </div>
+                  {selectedTask.notes && (
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>Notes</dt>
+                      <dd className="text-sm mt-1 whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>{selectedTask.notes}</dd>
+                    </div>
+                  )}
+                  {selectedTask.completed_at && (
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-muted)' }}>Completed</dt>
+                      <dd className="text-sm mt-0.5" style={{ color: 'var(--accent-emerald)' }}>{new Date(selectedTask.completed_at).toLocaleString()}</dd>
+                    </div>
+                  )}
+                </dl>
+              </GlassCard>
+
+              {/* Footer link */}
+              <a
+                href={`/va-tasks/${selectedTask.id}`}
+                className="glass-button text-sm flex items-center justify-center gap-2 w-full py-2"
+              >
+                <ExternalLink size={14} />
+                Open Full Detail Page
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
