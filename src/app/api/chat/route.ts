@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { authenticate } from '@/lib/api/auth'
+import { notify } from '@/lib/notifications'
 
 // GET /api/chat — List messages with pagination
 export async function GET(request: NextRequest) {
@@ -88,6 +89,18 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Auto-notify Brandon when OpenClaw or Cowork posts
+    if (body.sender !== 'brandon') {
+      notify({
+        recipient: 'brandon',
+        title: `New message from ${body.sender}`,
+        message: body.message!.substring(0, 100),
+        type: 'chat',
+        link: `/chat`,
+        metadata: { channel: body.channel, sender: body.sender },
+      })
     }
 
     return NextResponse.json({ data }, { status: 201 })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { authenticate } from '@/lib/api/auth'
+import { notify } from '@/lib/notifications'
 
 // ---------------------------------------------------------------------------
 // GET /api/outreach/leads
@@ -115,6 +116,16 @@ export async function POST(request: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    // Notify Brandon of new lead
+    const companyName = (data as Record<string, unknown>)?.company_name || 'Unknown'
+    notify({
+      recipient: 'brandon',
+      title: `New lead added: ${companyName}`,
+      message: `A new outreach lead has been created.`,
+      type: 'lead',
+      link: `/outreach/leads/${(data as Record<string, unknown>)?.lead_id || ''}`,
+    })
 
     return NextResponse.json({ data }, { status: 201 })
   } catch (err) {
