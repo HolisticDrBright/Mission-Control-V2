@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Plus, Users, Calendar as CalIcon } from 'lucide-react'
 import GlassCard from '@/components/ui/GlassCard'
 import StatusPill from '@/components/ui/StatusPill'
@@ -45,14 +44,10 @@ export default function VATasksPage() {
   const fetchTasks = useCallback(async () => {
     setLoading(true)
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from('va_tasks')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (!error && data) {
-        setTasks(data as VATask[])
+      const res = await fetch('/api/va-tasks')
+      if (res.ok) {
+        const json = await res.json()
+        setTasks((json.data || []) as VATask[])
       } else {
         setTasks([])
       }

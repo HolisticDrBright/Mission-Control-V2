@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { GlassForm, Field, TextArea, Select, StatusBadge, Breadcrumbs } from '@/components/ui/FormComponents'
 import GlassCard from '@/components/ui/GlassCard'
 
@@ -84,7 +83,6 @@ const PIPELINE_STAGES = [
 export default function LeadDetailPage() {
   const params = useParams()
   const leadId = params.lead_id as string
-  const supabase = createClient()
 
   const [lead, setLead] = useState<Lead | null>(null)
   const [loading, setLoading] = useState(true)

@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { FileText, Plus, ChevronUp } from 'lucide-react'
 import GlassCard from '@/components/ui/GlassCard'
 import { GlassForm, Field, TextArea, Select, DataTable, StatusBadge, Breadcrumbs } from '@/components/ui/FormComponents'
-import { createClient } from '@/lib/supabase/client'
 
 interface BlogPost {
   id: string
@@ -23,18 +22,18 @@ export default function BlogPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
 
-  const supabase = createClient()
-
   const fetchPosts = useCallback(async () => {
     setLoading(true)
     try {
-      const { data } = await supabase
-        .from('blog_posts')
-        .select('*')
-        .order('created_at', { ascending: false })
-      setPosts((data as BlogPost[]) ?? [])
+      const res = await fetch('/api/seo')
+      if (res.ok) {
+        const json = await res.json()
+        setPosts((json.data?.blog_posts as BlogPost[]) ?? [])
+      } else {
+        setPosts([])
+      }
     } catch {
-      // table may not exist
+      // API may not be available
     } finally {
       setLoading(false)
     }
@@ -44,14 +43,21 @@ export default function BlogPage() {
 
   const handleCreate = async (formData: Record<string, unknown>) => {
     try {
-      const { error } = await supabase.from('blog_posts').insert({
-        site_id: formData.site_id || null,
-        title: formData.title,
-        target_keyword: formData.target_keyword || null,
-        status: formData.status || 'idea',
-        meta_description: formData.meta_description || null,
+      const res = await fetch('/api/seo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          site_id: formData.site_id || null,
+          title: formData.title,
+          target_keyword: formData.target_keyword || null,
+          status: formData.status || 'idea',
+          meta_description: formData.meta_description || null,
+        }),
       })
-      if (error) throw new Error(error.message)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to create blog post')
+      }
       await fetchPosts()
       setShowForm(false)
     } catch (e) {

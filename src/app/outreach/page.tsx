@@ -2,7 +2,6 @@
 
 import { useState, useCallback } from 'react'
 import { useOutreachData, useOrchestratorState } from '@/lib/hooks/use-orchestrator'
-import { createClient } from '@/lib/supabase/client'
 import {
   Target,
   Radio,
@@ -975,11 +974,11 @@ export default function OutreachPage() {
     async (id: string) => {
       setMarkedActioned((prev) => new Set(prev).add(id))
       try {
-        const supabase = createClient()
-        await supabase
-          .from('mc_outreach_replies')
-          .update({ actioned: true })
-          .eq('id', id)
+        await fetch('/api/outreach/replies', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, actioned: true }),
+        })
         refetch()
       } catch {
         // optimistic update; ignore errors

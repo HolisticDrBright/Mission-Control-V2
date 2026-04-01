@@ -33,6 +33,7 @@ export default function OutreachRepliesPage() {
 
   const pageSize = 25
 
+  // Keep Supabase read — no dedicated list API route for replies
   const fetchReplies = useCallback(async () => {
     setLoading(true)
     try {

@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { AlertTriangle, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 import GlassCard from '@/components/ui/GlassCard'
 import { GlassForm, Field, TextArea, Select, DataTable, StatusBadge, Breadcrumbs } from '@/components/ui/FormComponents'
-import { createClient } from '@/lib/supabase/client'
 
 interface Alert {
   id: string
@@ -22,18 +21,18 @@ export default function AlertsPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
 
-  const supabase = createClient()
-
   const fetchAlerts = useCallback(async () => {
     setLoading(true)
     try {
-      const { data } = await supabase
-        .from('mc_alerts')
-        .select('*')
-        .order('created_at', { ascending: false })
-      setAlerts((data as Alert[]) ?? [])
+      const res = await fetch('/api/mission-state?section=alerts')
+      if (res.ok) {
+        const json = await res.json()
+        setAlerts((json.data as Alert[]) ?? [])
+      } else {
+        setAlerts([])
+      }
     } catch {
-      // table may not exist
+      // API may not be available
     } finally {
       setLoading(false)
     }
@@ -43,14 +42,21 @@ export default function AlertsPage() {
 
   const handleCreate = async (formData: Record<string, unknown>) => {
     try {
-      const { error } = await supabase.from('mc_alerts').insert({
-        system: formData.system,
-        severity: formData.severity,
-        issue: formData.issue,
-        action_needed: formData.action_needed || null,
-        acknowledged: false,
+      const res = await fetch('/api/mission-state?section=alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system: formData.system,
+          severity: formData.severity,
+          issue: formData.issue,
+          action_needed: formData.action_needed || null,
+          acknowledged: false,
+        }),
       })
-      if (error) throw new Error(error.message)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to create alert')
+      }
       await fetchAlerts()
       setShowForm(false)
     } catch (e) {
@@ -60,9 +66,14 @@ export default function AlertsPage() {
 
   const handleAcknowledge = async (id: string) => {
     try {
-      const { error } = await supabase.from('mc_alerts').update({ acknowledged: true }).eq('id', id)
-      if (error) throw new Error(error.message)
-      setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, acknowledged: true } : a)))
+      const res = await fetch('/api/mission-state?section=alerts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, acknowledged: true }),
+      })
+      if (res.ok) {
+        setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, acknowledged: true } : a)))
+      }
     } catch {
       // ignore
     }

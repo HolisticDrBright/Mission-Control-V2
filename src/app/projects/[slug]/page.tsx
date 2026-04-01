@@ -6,7 +6,6 @@ import { useProjects, useTasks, useAgents } from '@/lib/hooks/use-data'
 import { ArrowLeft, Bot, FolderKanban, DollarSign, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { useStore } from '@/store'
-import { createClient } from '@/lib/supabase/client'
 import GlassCard from '@/components/ui/GlassCard'
 import StatusPill from '@/components/ui/StatusPill'
 import AgentAvatar from '@/components/ui/AgentAvatar'
@@ -257,9 +256,15 @@ export default function ProjectDetailPage({ params }: { params: Params }) {
           </h3>
           <GlassForm
             onSubmit={async (data: Record<string, unknown>) => {
-              const supabase = createClient()
-              const { error } = await supabase.from('projects').update(data).eq('id', project.id)
-              if (error) throw new Error(error.message)
+              const res = await fetch('/api/projects', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: project.id, ...data }),
+              })
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}))
+                throw new Error(err.error || 'Failed to update project')
+              }
             }}
             submitLabel="Save Changes"
           >

@@ -1,8 +1,6 @@
 'use client'
 
 import { use, useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { GlassForm, Field, TextArea, Select, StatusBadge, Breadcrumbs } from '@/components/ui/FormComponents'
 import GlassCard from '@/components/ui/GlassCard'
 import type { Task, TaskActivityEntry } from '@/lib/types'
@@ -35,38 +33,40 @@ const PRIORITY_OPTIONS = [
 
 export default function TaskDetailPage({ params }: { params: Params }) {
   const { id } = use(params)
-  const router = useRouter()
   const [task, setTask] = useState<Task | null>(null)
   const [loading, setLoading] = useState(true)
   const [quickMsg, setQuickMsg] = useState('')
 
   useEffect(() => {
-    try {
-      const supabase = createClient()
-      supabase
-        .from('tasks')
-        .select('*')
-        .eq('id', id)
-        .single()
-        .then(({ data, error }) => {
-          if (error) console.error(error)
-          setTask(data as Task | null)
-          setLoading(false)
-        }, () => {
-          setLoading(false)
-        })
-    } catch {
-      setLoading(false)
-    }
+    (async () => {
+      try {
+        const res = await fetch(`/api/tasks?id=${id}`)
+        if (res.ok) {
+          const json = await res.json()
+          // API returns { data: [...] } — find matching task
+          const tasks = json.data || []
+          const found = Array.isArray(tasks) ? tasks.find((t: Record<string, unknown>) => t.id === id) : null
+          setTask(found as Task | null)
+        }
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false)
+      }
+    })()
   }, [id])
 
   const quickStatus = async (newStatus: string) => {
     setQuickMsg('')
     try {
-      const supabase = createClient()
-      const { error } = await supabase.from('tasks').update({ kanban_status: newStatus }).eq('id', id)
-      if (error) {
-        setQuickMsg(`Error: ${error.message}`)
+      const res = await fetch('/api/tasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, kanban_status: newStatus }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        setQuickMsg(`Error: ${err.error || 'Failed to update'}`)
       } else {
         setTask((prev) => prev ? { ...prev, kanban_status: newStatus as Task['kanban_status'] } : prev)
         setQuickMsg(`Status changed to ${newStatus.replace(/_/g, ' ')}`)
@@ -78,12 +78,23 @@ export default function TaskDetailPage({ params }: { params: Params }) {
 
   const handleUpdate = async (data: Record<string, unknown>) => {
     try {
-      const supabase = createClient()
-      const { error } = await supabase.from('tasks').update(data).eq('id', id)
-      if (error) throw new Error(error.message)
+      const res = await fetch('/api/tasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...data }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to update task')
+      }
       // refresh local state
-      const { data: fresh } = await supabase.from('tasks').select('*').eq('id', id).single()
-      if (fresh) setTask(fresh as Task)
+      const refreshRes = await fetch(`/api/tasks?id=${id}`)
+      if (refreshRes.ok) {
+        const json = await refreshRes.json()
+        const tasks = json.data || []
+        const found = Array.isArray(tasks) ? tasks.find((t: Record<string, unknown>) => t.id === id) : null
+        if (found) setTask(found as Task)
+      }
     } catch (e: unknown) {
       throw e instanceof Error ? e : new Error('Failed to update task')
     }

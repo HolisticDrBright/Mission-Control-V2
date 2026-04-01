@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { GlassForm, Field, TextArea, Select, DataTable, StatusBadge, Breadcrumbs } from '@/components/ui/FormComponents'
 import GlassCard from '@/components/ui/GlassCard'
 
@@ -35,8 +34,6 @@ const TYPE_OPTIONS = [
 // ---------------------------------------------------------------------------
 
 export default function OutreachTemplatesPage() {
-  const supabase = createClient()
-
   const [templates, setTemplates] = useState<Template[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -49,22 +46,22 @@ export default function OutreachTemplatesPage() {
   const fetchTemplates = useCallback(async () => {
     setLoading(true)
     try {
-      const { data, count, error } = await supabase
-        .from('mc_outreach_templates')
-        .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range((page - 1) * pageSize, page * pageSize - 1)
+      const params = new URLSearchParams()
+      params.set('limit', String(pageSize))
+      params.set('offset', String((page - 1) * pageSize))
 
-      if (!error && data) {
-        setTemplates(data as Template[])
-        setTotal(count ?? 0)
+      const res = await fetch(`/api/outreach/templates?${params.toString()}`)
+      if (res.ok) {
+        const json = await res.json()
+        setTemplates((json.data || []) as Template[])
+        setTotal(json.count ?? 0)
       }
     } catch {
-      // table may not exist
+      // API may not be available
     } finally {
       setLoading(false)
     }
-  }, [page]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page])
 
   useEffect(() => {
     fetchTemplates()

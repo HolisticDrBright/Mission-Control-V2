@@ -1,8 +1,6 @@
 'use client'
 
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { GlassForm, Field, TextArea, Select, Breadcrumbs } from '@/components/ui/FormComponents'
 import GlassCard from '@/components/ui/GlassCard'
 
@@ -44,9 +42,15 @@ export default function TaskCreatePage() {
 
   const handleCreate = async (data: Record<string, unknown>) => {
     try {
-      const supabase = createClient()
-      const { error } = await supabase.from('tasks').insert(data)
-      if (error) throw new Error(error.message)
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to create task')
+      }
       router.push('/tasks')
     } catch (e) {
       throw e instanceof Error ? e : new Error('Failed to create task')

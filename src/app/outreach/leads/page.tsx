@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { GlassForm, Field, TextArea, Select, DataTable, StatusBadge, Breadcrumbs } from '@/components/ui/FormComponents'
 import GlassCard from '@/components/ui/GlassCard'
 
@@ -115,22 +114,18 @@ export default function OutreachLeadsPage() {
   const fetchLeads = useCallback(async () => {
     setLoading(true)
     try {
-      const supabase = createClient()
-      let query = supabase
-        .from('mc_outreach_leads')
-        .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range((page - 1) * pageSize, page * pageSize - 1)
+      const params = new URLSearchParams()
+      params.set('limit', String(pageSize))
+      params.set('offset', String((page - 1) * pageSize))
+      if (filterStage) params.set('status', filterStage)
+      if (filterSource) params.set('source', filterSource)
+      if (filterCampaign) params.set('campaign', filterCampaign)
 
-      if (filterStage) query = query.eq('pipeline_stage', filterStage)
-      if (filterSource) query = query.eq('source', filterSource)
-      if (filterCampaign) query = query.eq('campaign', filterCampaign)
-
-      const { data, count, error } = await query
-
-      if (!error && data) {
-        setLeads(data as Lead[])
-        setTotal(count ?? 0)
+      const res = await fetch(`/api/outreach/leads?${params.toString()}`)
+      if (res.ok) {
+        const json = await res.json()
+        setLeads((json.data || []) as Lead[])
+        setTotal(json.count ?? 0)
       } else {
         setLeads([])
         setTotal(0)

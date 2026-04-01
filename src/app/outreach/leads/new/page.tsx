@@ -2,7 +2,6 @@
 
 import { useState, type FormEvent, type ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import GlassCard from '@/components/ui/GlassCard'
 import { Breadcrumbs } from '@/components/ui/FormComponents'
 
