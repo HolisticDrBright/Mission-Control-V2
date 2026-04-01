@@ -7,9 +7,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'GOOGLE_CLIENT_ID not configured' }, { status: 503 })
   }
 
-  // Determine callback URL
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || `http://${request.headers.get('host') || 'localhost:3001'}`
-  const redirectUri = `${appUrl}/api/oauth/google/callback`
+  // Use the Host header so it works via SSH tunnel (localhost:3002)
+  // or direct access (137.184.84.143:3001)
+  const host = request.headers.get('host') || 'localhost:3001'
+  const protocol = host.includes('localhost') ? 'http' : (request.headers.get('x-forwarded-proto') || 'http')
+  const redirectUri = `${protocol}://${host}/api/oauth/google/callback`
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -26,7 +28,6 @@ export async function GET(request: NextRequest) {
 
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
 
-  // Return both a redirect and the URL as JSON (useful for API callers)
   const wantsJson = request.headers.get('accept')?.includes('application/json')
 
   if (wantsJson) {
@@ -37,6 +38,5 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  // Redirect the browser directly to Google
   return NextResponse.redirect(authUrl)
 }

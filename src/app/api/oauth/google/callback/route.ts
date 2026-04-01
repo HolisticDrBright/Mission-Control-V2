@@ -30,8 +30,9 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || `http://${request.headers.get('host') || 'localhost:3001'}`
-  const redirectUri = `${appUrl}/api/oauth/google/callback`
+  const host = request.headers.get('host') || 'localhost:3001'
+  const protocol = host.includes('localhost') ? 'http' : (request.headers.get('x-forwarded-proto') || 'http')
+  const redirectUri = `${protocol}://${host}/api/oauth/google/callback`
 
   try {
     // Exchange code for tokens
