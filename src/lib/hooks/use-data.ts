@@ -2,100 +2,83 @@
 
 import { useEffect } from 'react'
 import { useStore } from '@/store'
-import { createClient } from '@/lib/supabase/client'
 
-function safeFetch(
-  table: string,
+// Fetch from REST API endpoints instead of Supabase direct.
+// This avoids anon key issues and uses the server-side service role key.
+
+function apiFetch(
+  url: string,
   setter: (data: any[]) => void,
-  opts?: { order?: { column: string; ascending?: boolean }; limit?: number },
+  dataPath?: string, // e.g. 'data.blog_posts' or just 'data'
 ) {
-  try {
-    const supabase = createClient()
-    let query = supabase.from(table).select('*')
-
-    if (opts?.order) {
-      query = query.order(opts.order.column, { ascending: opts.order.ascending ?? false })
-    }
-    if (opts?.limit) {
-      query = query.limit(opts.limit)
-    }
-
-    query.then(
-      ({ data, error }) => {
-        if (error) {
-          console.error(`[use-data] ${table} query error:`, error.message)
-          setter([]) // Set empty default on error
-          return
+  fetch(url)
+    .then(res => {
+      if (!res.ok) throw new Error(`API ${res.status}`)
+      return res.json()
+    })
+    .then(json => {
+      let result = json
+      // Navigate the data path (e.g. json.data or json.data.blog_posts)
+      if (dataPath) {
+        for (const key of dataPath.split('.')) {
+          result = result?.[key]
         }
-        setter(data || [])
-      },
-      (err) => {
-        console.error(`[use-data] ${table} fetch failed:`, err)
-        setter([]) // Set empty default on network failure
-      },
-    )
-  } catch (err) {
-    console.error(`[use-data] ${table} client error:`, err)
-    setter([]) // Set empty default if client creation fails
-  }
+      }
+      setter(Array.isArray(result) ? result : [])
+    })
+    .catch(err => {
+      console.error(`[use-data] ${url} failed:`, err)
+      setter([])
+    })
 }
 
 export function useProjects() {
   const setProjects = useStore((s) => s.setProjects)
   useEffect(() => {
-    safeFetch('projects', setProjects, { order: { column: 'updated_at' } })
+    apiFetch('/api/projects', setProjects, 'data')
   }, [setProjects])
 }
 
 export function useAgents() {
   const setAgents = useStore((s) => s.setAgents)
   useEffect(() => {
-    safeFetch('agents', setAgents, { order: { column: 'updated_at' } })
+    apiFetch('/api/agents', setAgents, 'data')
   }, [setAgents])
 }
 
 export function useTasks() {
   const setTasks = useStore((s) => s.setTasks)
   useEffect(() => {
-    safeFetch('tasks', setTasks, { order: { column: 'created_at' } })
+    apiFetch('/api/tasks', setTasks, 'data')
   }, [setTasks])
 }
 
 export function useScheduledJobs() {
   const setJobs = useStore((s) => s.setJobs)
   useEffect(() => {
-    safeFetch('scheduled_jobs', setJobs, { order: { column: 'next_run_at', ascending: true } })
+    apiFetch('/api/scheduler', setJobs, 'data')
   }, [setJobs])
 }
 
 export function useInboxMessages() {
   const setMessages = useStore((s) => s.setMessages)
   useEffect(() => {
-    safeFetch('inbox_messages', setMessages, { order: { column: 'created_at' } })
+    apiFetch('/api/inbox', setMessages, 'data')
   }, [setMessages])
 }
 
 export function useActivityLog() {
   const addActivity = useStore((s) => s.addActivity)
   useEffect(() => {
-    try {
-      const supabase = createClient()
-      supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(50)
-        .then(
-          ({ data, error }) => {
-            if (error) {
-              console.error('[use-data] activity_log query error:', error.message)
-              return
-            }
-            if (data) data.reverse().forEach(addActivity)
-          },
-          (err) => {
-            console.error('[use-data] activity_log fetch failed:', err)
-          },
-        )
-    } catch (err) {
-      console.error('[use-data] activity_log client error:', err)
-    }
+    fetch('/api/mission-state?section=alerts')
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        const items = json?.data?.alerts || json?.data || []
+        if (Array.isArray(items)) {
+          items.reverse().forEach(addActivity)
+        }
+      })
+      .catch(err => console.error('[use-data] activity failed:', err))
   }, [addActivity])
 }
 
