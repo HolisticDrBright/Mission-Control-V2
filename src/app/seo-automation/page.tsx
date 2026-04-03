@@ -1,301 +1,235 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import {
-  TrendingUp, FileText, Search, Globe, BarChart3, RefreshCw, ExternalLink, Plus,
-} from 'lucide-react'
-import GlassCard from '@/components/ui/GlassCard'
-import { StatusBadge } from '@/components/ui/FormComponents'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface BlogPost {
-  id: string
-  title: string
-  slug: string | null
-  status: string
-  target_keyword: string | null
-  meta_description: string | null
-  word_count: number | null
-  seo_score: number | null
-  published_url: string | null
-  published_at: string | null
-  created_at: string
-}
-
-interface Keyword {
-  id: string
-  keyword: string
-  search_volume: number | null
-  difficulty: number | null
-  current_rank: number | null
-  target_rank: number | null
-}
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+import { useState, useEffect } from 'react'
 
 export default function SEOAutomationPage() {
-  const [posts, setPosts] = useState<BlogPost[]>([])
-  const [keywords, setKeywords] = useState<Keyword[]>([])
-  const [loading, setLoading] = useState(true)
+  const [posts, setPosts] = useState<Array<Record<string, unknown>>>([])
+  const [keywords, setKeywords] = useState<Array<Record<string, unknown>>>([])
+  const [googleData, setGoogleData] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
-  const [view, setView] = useState<'posts' | 'keywords'>('posts')
-
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      // Fetch from /api/seo (blog_posts + keywords)
-      const res = await fetch('/api/seo')
-      if (!res.ok) throw new Error(`API returned ${res.status}`)
-      const json = await res.json()
-
-      const blogPosts = json.data?.blog_posts || []
-      const kw = json.data?.keywords || []
-
-      setPosts(Array.isArray(blogPosts) ? blogPosts : [])
-      setKeywords(Array.isArray(kw) ? kw : [])
-
-      // If no posts from DB, try WordPress sync
-      if (blogPosts.length === 0) {
-        const wpRes = await fetch('/api/seo/sync-wordpress?wp_url=https://holisticdrbright.com&per_page=100')
-        if (wpRes.ok) {
-          const wpJson = await wpRes.json()
-          if (wpJson.data?.length > 0) {
-            setPosts(wpJson.data.map((p: Record<string, unknown>) => ({
-              id: String(p.wp_id || Math.random()),
-              title: String(p.title || ''),
-              slug: p.slug as string || null,
-              status: 'published',
-              target_keyword: null,
-              meta_description: null,
-              word_count: p.word_count as number || null,
-              seo_score: null,
-              published_url: p.published_url as string || null,
-              published_at: p.published_at as string || null,
-              created_at: p.published_at as string || new Date().toISOString(),
-            })))
-          }
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load SEO data')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const [loading, setLoading] = useState(true)
+  const [view, setView] = useState<'posts' | 'keywords' | 'google'>('posts')
 
   useEffect(() => {
-    fetchData()
-  }, [fetchData])
+    Promise.all([
+      fetch('/api/seo').then(r => r.json()),
+      fetch('/api/seo/google-console').then(r => r.json())
+    ])
+    .then(([seoData, googleConsoleData]) => {
+      setPosts(Array.isArray(seoData?.data?.blog_posts) ? seoData.data.blog_posts : [])
+      setKeywords(Array.isArray(seoData?.data?.keywords) ? seoData.data.keywords : [])
+      setGoogleData(googleConsoleData)
+    })
+    .catch(err => setError(String(err)))
+    .finally(() => setLoading(false))
+  }, [])
 
-  // Stats
-  const published = posts.filter(p => p.status === 'published')
-  const drafts = posts.filter(p => p.status !== 'published')
-  const totalWords = published.reduce((sum, p) => sum + (p.word_count || 0), 0)
-  const scores = published.map(p => p.seo_score).filter((s): s is number => s !== null && s > 0)
-  const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null
-
-  // Loading state
-  if (loading) {
-    return (
-      <div className="p-6 max-w-[1600px] mx-auto space-y-6">
-        <h1 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>SEO Automation</h1>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {[1, 2, 3, 4, 5].map(i => (
-            <GlassCard key={i} className="p-4 animate-pulse">
-              <div className="h-3 w-16 rounded bg-white/5 mb-2" />
-              <div className="h-6 w-12 rounded bg-white/5" />
-            </GlassCard>
-          ))}
-        </div>
-        <GlassCard className="p-8">
-          <p className="text-sm text-center" style={{ color: 'var(--text-muted)' }}>Loading SEO data...</p>
-        </GlassCard>
-      </div>
-    )
+  const getUrl = (p: Record<string, unknown>) => (p.url as string) || (p.published_url as string) || null
+  const getStatus = (p: Record<string, unknown>) => (p.status as string) || (p.url ? 'published' : 'draft')
+  const getDomain = (p: Record<string, unknown>) => {
+    const url = getUrl(p)
+    if (!url) return '—'
+    try { return new URL(url).hostname.replace('www.', '') } catch { return '—' }
   }
 
+  if (loading) return (
+    <div style={{ padding: 24, color: '#eee', background: 'transparent' }}>
+      <h1 style={{ fontSize: 20, marginBottom: 16, fontWeight: 600 }}>SEO Automation</h1>
+      <p style={{ color: '#888' }}>Loading SEO data...</p>
+    </div>
+  )
+
+  const published = posts.filter(p => getStatus(p) === 'published')
+
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <TrendingUp size={20} style={{ color: 'var(--accent-emerald)' }} />
-          <h1 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-            SEO Automation
-          </h1>
+    <div style={{ padding: 24, color: '#eee', background: 'transparent', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>SEO Automation</h1>
+          <p style={{ fontSize: 12, color: '#888', margin: '4px 0 0' }}>{posts.length} articles · {keywords.length} keywords</p>
         </div>
-        <button className="glass-button text-sm flex items-center gap-2" onClick={fetchData}>
-          <RefreshCw size={14} />
-          Refresh
-        </button>
+        <button className="glass-button" style={{ fontSize: 13, padding: '6px 16px' }} onClick={() => window.location.reload()}>Refresh</button>
       </div>
 
-      {/* Error */}
       {error && (
-        <div className="p-3 rounded-xl text-sm" style={{ background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.2)', color: 'var(--accent-rose)' }}>
-          {error}
+        <div style={{ background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.3)', padding: 12, borderRadius: 12, marginBottom: 16, fontSize: 13, color: '#f43f5e' }}>
+          Error: {error}
         </div>
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <GlassCard className="p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <FileText size={13} style={{ color: 'var(--accent-blue)' }} />
-            <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Total Posts</span>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+        {[
+          { label: 'Total Articles', value: posts.length, color: '#3b82f6' },
+          { label: 'Published', value: published.length, color: '#10b981' },
+          { label: 'Keywords', value: keywords.length, color: '#f59e0b' },
+          { label: 'Total Words', value: posts.reduce((s, p) => s + ((p.word_count as number) || 0), 0).toLocaleString(), color: '#8b5cf6' },
+        ].map(s => (
+          <div key={s.label} className="glass-card" style={{ padding: 16 }}>
+            <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#888', margin: '0 0 4px' }}>{s.label}</p>
+            <p style={{ fontSize: 24, fontWeight: 600, margin: 0, color: '#eee' }}>{s.value}</p>
           </div>
-          <p className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>{posts.length}</p>
-        </GlassCard>
-        <GlassCard className="p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Globe size={13} style={{ color: 'var(--accent-emerald)' }} />
-            <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Published</span>
-          </div>
-          <p className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>{published.length}</p>
-        </GlassCard>
-        <GlassCard className="p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <FileText size={13} style={{ color: 'var(--accent-amber)' }} />
-            <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Drafts</span>
-          </div>
-          <p className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>{drafts.length}</p>
-        </GlassCard>
-        <GlassCard className="p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Search size={13} style={{ color: 'var(--accent-cyan)' }} />
-            <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Keywords</span>
-          </div>
-          <p className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>{keywords.length}</p>
-        </GlassCard>
-        <GlassCard className="p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <BarChart3 size={13} style={{ color: 'var(--accent-purple)' }} />
-            <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Total Words</span>
-          </div>
-          <p className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>{totalWords.toLocaleString()}</p>
-        </GlassCard>
+        ))}
       </div>
 
       {/* View toggle */}
-      <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ background: 'rgba(255,255,255,0.04)' }}>
-        <button
-          className="px-4 py-1.5 rounded-lg text-sm"
-          style={{ background: view === 'posts' ? 'var(--glass-bg-hover)' : 'transparent', color: view === 'posts' ? 'var(--text-primary)' : 'var(--text-muted)' }}
-          onClick={() => setView('posts')}
-        >
-          Blog Posts ({posts.length})
-        </button>
-        <button
-          className="px-4 py-1.5 rounded-lg text-sm"
-          style={{ background: view === 'keywords' ? 'var(--glass-bg-hover)' : 'transparent', color: view === 'keywords' ? 'var(--text-primary)' : 'var(--text-muted)' }}
-          onClick={() => setView('keywords')}
-        >
-          Keywords ({keywords.length})
-        </button>
+      <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 12, background: 'rgba(255,255,255,0.04)', width: 'fit-content', marginBottom: 20 }}>
+        <button style={{ padding: '6px 16px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', background: view === 'google' ? 'rgba(255,255,255,0.1)' : 'transparent', color: view === 'google' ? '#eee' : '#888' }} onClick={() => setView('google')}>📊 Google Data</button>
+        <button style={{ padding: '6px 16px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', background: view === 'posts' ? 'rgba(255,255,255,0.1)' : 'transparent', color: view === 'posts' ? '#eee' : '#888' }} onClick={() => setView('posts')}>Articles ({posts.length})</button>
+        <button style={{ padding: '6px 16px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', background: view === 'keywords' ? 'rgba(255,255,255,0.1)' : 'transparent', color: view === 'keywords' ? '#eee' : '#888' }} onClick={() => setView('keywords')}>Keywords ({keywords.length})</button>
       </div>
 
-      {/* Blog Posts Table */}
-      {view === 'posts' && (
-        <GlassCard className="p-5">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+      {/* Google Search Console Data */}
+      {view === 'google' && googleData && (
+        <div className="glass-card" style={{ padding: 20 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 16px', color: '#eee' }}>📈 Google Search Console</h3>
+          
+          {/* Summary Stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+            {[
+              { label: 'Total Clicks', value: googleData.summary?.totalClicks?.toLocaleString() || 0, color: '#10b981' },
+              { label: 'Impressions', value: googleData.summary?.totalImpressions?.toLocaleString() || 0, color: '#3b82f6' },
+              { label: 'Avg CTR', value: `${googleData.summary?.avgCTR?.toFixed(2)}%` || '0%', color: '#f59e0b' },
+              { label: 'Avg Position', value: googleData.summary?.avgPosition?.toFixed(1) || '0', color: '#8b5cf6' },
+            ].map(s => (
+              <div key={s.label} className="glass-card" style={{ padding: 16, borderLeft: `3px solid ${s.color}` }}>
+                <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#888', margin: '0 0 4px' }}>{s.label}</p>
+                <p style={{ fontSize: 20, fontWeight: 600, margin: 0, color: '#eee' }}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Top Keywords */}
+          <div style={{ marginBottom: 24 }}>
+            <h4 style={{ fontSize: 13, fontWeight: 600, margin: '0 0 12px', color: '#eee' }}>Top Keywords ({googleData.topQueries?.length || 0})</h4>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                  <th className="text-left py-2 px-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Title</th>
-                  <th className="text-left py-2 px-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Status</th>
-                  <th className="text-left py-2 px-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Keyword</th>
-                  <th className="text-right py-2 px-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Words</th>
-                  <th className="text-right py-2 px-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>SEO</th>
-                  <th className="text-left py-2 px-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Published</th>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>Keyword</th>
+                  <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>Clicks</th>
+                  <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>Impressions</th>
+                  <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>CTR</th>
+                  <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>Position</th>
                 </tr>
               </thead>
               <tbody>
-                {posts.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
-                      No blog posts found. Sync from WordPress or create posts manually.
-                    </td>
+                {(googleData.topQueries || []).slice(0, 15).map((q: any, i: number) => (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '8px 12px', color: '#eee' }}>{q.keyword}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 12px', color: '#10b981', fontWeight: 500 }}>{q.clicks}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 12px', color: '#3b82f6' }}>{q.impressions}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 12px', color: '#f59e0b' }}>{(q.ctr * 100).toFixed(2)}%</td>
+                    <td style={{ textAlign: 'right', padding: '8px 12px', color: '#8b5cf6', fontWeight: 500 }}>#{Math.round(q.position)}</td>
                   </tr>
-                ) : (
-                  posts.map((post) => (
-                    <tr key={post.id} className="border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                      <td className="py-2.5 px-3 max-w-[350px]">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate font-medium" style={{ color: 'var(--text-primary)' }}>{post.title}</span>
-                          {post.published_url && (
-                            <a href={post.published_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                              <ExternalLink size={12} style={{ color: 'var(--accent-blue)' }} />
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3"><StatusBadge status={post.status} /></td>
-                      <td className="py-2.5 px-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{post.target_keyword || '—'}</td>
-                      <td className="text-right py-2.5 px-3 font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{post.word_count?.toLocaleString() || '—'}</td>
-                      <td className="text-right py-2.5 px-3">
-                        {post.seo_score ? (
-                          <span style={{ color: post.seo_score >= 80 ? 'var(--accent-emerald)' : post.seo_score >= 50 ? 'var(--accent-amber)' : 'var(--accent-rose)' }}>{post.seo_score}</span>
-                        ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
-                      </td>
-                      <td className="py-2.5 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>{post.published_at ? new Date(post.published_at).toLocaleDateString() : '—'}</td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
           </div>
-        </GlassCard>
+
+          {/* Top Pages */}
+          <div>
+            <h4 style={{ fontSize: 13, fontWeight: 600, margin: '0 0 12px', color: '#eee' }}>Top Pages ({googleData.topPages?.length || 0})</h4>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>URL</th>
+                  <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>Clicks</th>
+                  <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>Impressions</th>
+                  <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>CTR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(googleData.topPages || []).slice(0, 10).map((p: any, i: number) => (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '8px 12px', color: '#eee', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.url.replace('https://', '').replace('http://', '')}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 12px', color: '#10b981', fontWeight: 500 }}>{p.clicks}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 12px', color: '#3b82f6' }}>{p.impressions}</td>
+                    <td style={{ textAlign: 'right', padding: '8px 12px', color: '#f59e0b' }}>{(p.ctr * 100).toFixed(2)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
-      {/* Keywords Table */}
-      {view === 'keywords' && (
-        <GlassCard className="p-5">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                  <th className="text-left py-2 px-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Keyword</th>
-                  <th className="text-right py-2 px-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Volume</th>
-                  <th className="text-right py-2 px-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Difficulty</th>
-                  <th className="text-right py-2 px-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Rank</th>
-                  <th className="text-right py-2 px-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Target</th>
-                </tr>
-              </thead>
-              <tbody>
-                {keywords.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
-                      No keywords tracked yet.
+      {/* Articles table - only show if not viewing google data */}
+      {view === 'posts' && googleData && (
+        <div className="glass-card" style={{ padding: 20 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Title</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Site</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Status</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Words</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Published</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Link</th>
+              </tr>
+            </thead>
+            <tbody>
+              {posts.length === 0 ? (
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#666' }}>No articles found</td></tr>
+              ) : posts.map((p, i) => {
+                const url = getUrl(p)
+                const domain = getDomain(p)
+                const status = getStatus(p)
+                return (
+                  <tr key={(p.id as string) || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '10px 12px', maxWidth: 350 }}>
+                      <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{p.title as string}</span>
                     </td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: domain.includes('holistic') ? 'rgba(16,185,129,0.12)' : 'rgba(6,182,212,0.12)', color: domain.includes('holistic') ? '#10b981' : '#06b6d4' }}>{domain.split('.')[0]}</span>
+                    </td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: status === 'published' ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)', color: status === 'published' ? '#10b981' : '#f59e0b' }}>{status}</span>
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '10px 12px', fontFamily: 'monospace', fontSize: 12, color: '#aaa' }}>{(p.word_count as number)?.toLocaleString() || '—'}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#888' }}>{p.published_at ? new Date(p.published_at as string).toLocaleDateString() : '—'}</td>
+                    <td style={{ padding: '10px 12px' }}>{url ? <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', fontSize: 12 }}>View ↗</a> : <span style={{ color: '#555' }}>—</span>}</td>
                   </tr>
-                ) : (
-                  keywords.map((kw) => (
-                    <tr key={kw.id} className="border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                      <td className="py-2.5 px-3 font-medium" style={{ color: 'var(--text-primary)' }}>{kw.keyword}</td>
-                      <td className="text-right py-2.5 px-3" style={{ color: 'var(--text-secondary)' }}>{kw.search_volume?.toLocaleString() || '—'}</td>
-                      <td className="text-right py-2.5 px-3">
-                        {kw.difficulty !== null ? (
-                          <span className="px-1.5 py-0.5 rounded text-[10px]" style={{
-                            background: kw.difficulty > 70 ? 'rgba(244,63,94,0.15)' : kw.difficulty > 40 ? 'rgba(245,158,11,0.15)' : 'rgba(16,185,129,0.15)',
-                            color: kw.difficulty > 70 ? 'var(--accent-rose)' : kw.difficulty > 40 ? 'var(--accent-amber)' : 'var(--accent-emerald)',
-                          }}>{kw.difficulty}</span>
-                        ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
-                      </td>
-                      <td className="text-right py-2.5 px-3 font-mono" style={{ color: 'var(--text-primary)' }}>{kw.current_rank ?? '—'}</td>
-                      <td className="text-right py-2.5 px-3" style={{ color: 'var(--text-muted)' }}>{kw.target_rank ?? '—'}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </GlassCard>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Keywords table */}
+      {view === 'keywords' && (
+        <div className="glass-card" style={{ padding: 20 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Keyword</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Volume</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Difficulty</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Rank</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: '#888', fontWeight: 500 }}>Target</th>
+              </tr>
+            </thead>
+            <tbody>
+              {keywords.length === 0 ? (
+                <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: '#666' }}>No keywords tracked</td></tr>
+              ) : keywords.map((kw, i) => (
+                <tr key={(kw.id as string) || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 500 }}>{kw.keyword as string}</td>
+                  <td style={{ textAlign: 'right', padding: '10px 12px', color: '#aaa' }}>{(kw.search_volume as number)?.toLocaleString() || '—'}</td>
+                  <td style={{ textAlign: 'right', padding: '10px 12px' }}>
+                    {kw.difficulty != null ? (
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: (kw.difficulty as number) > 70 ? 'rgba(244,63,94,0.12)' : (kw.difficulty as number) > 40 ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.12)', color: (kw.difficulty as number) > 70 ? '#f43f5e' : (kw.difficulty as number) > 40 ? '#f59e0b' : '#10b981' }}>
+                        {kw.difficulty as number}
+                      </span>
+                    ) : <span style={{ color: '#555' }}>—</span>}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '10px 12px', fontFamily: 'monospace', color: (kw.current_rank as number) && (kw.current_rank as number) <= 10 ? '#10b981' : '#eee' }}>{(kw.current_rank as number) ?? '—'}</td>
+                  <td style={{ textAlign: 'right', padding: '10px 12px', color: '#888' }}>{(kw.target_rank as number) ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

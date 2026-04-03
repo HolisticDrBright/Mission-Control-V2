@@ -6,14 +6,18 @@ import { ExternalLink, RefreshCw, Globe } from 'lucide-react'
 interface Post {
   id: string
   title: string
-  slug: string | null
-  status: string
-  target_keyword: string | null
-  word_count: number | null
-  seo_score: number | null
-  published_url: string | null
+  slug?: string | null
+  status?: string | null
+  target_keyword?: string | null
+  word_count?: number | null
+  seo_score?: number | null
+  published_url?: string | null
+  url?: string | null
   published_at: string | null
 }
+
+function getUrl(p: Post): string | null { return p.url || p.published_url || null }
+function getStatus(p: Post): string { return p.status || (p.published_at || p.url ? 'published' : 'draft') }
 
 interface KW {
   id: string
@@ -33,7 +37,7 @@ export default function HolisticDrBrightSEOPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/seo')
+      const res = await fetch('/api/seo?domain=holisticdrbright.com')
       if (res.ok) {
         const json = await res.json()
         setPosts(Array.isArray(json.data?.blog_posts) ? json.data.blog_posts : [])
@@ -45,7 +49,7 @@ export default function HolisticDrBrightSEOPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  const published = posts.filter(p => p.status === 'published')
+  const published = posts.filter(p => getStatus(p) === 'published')
 
   if (loading) return <div className="p-6"><p style={{ color: 'var(--text-muted)' }}>Loading SEO data...</p></div>
 
@@ -89,8 +93,8 @@ export default function HolisticDrBrightSEOPage() {
                 <tr><td colSpan={4} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>No posts</td></tr>
               ) : posts.map(p => (
                 <tr key={p.id} className="border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                  <td className="py-2.5 px-3 max-w-[350px]"><div className="flex items-center gap-2"><span className="truncate font-medium" style={{ color: 'var(--text-primary)' }}>{p.title}</span>{p.published_url && <a href={p.published_url} target="_blank" rel="noopener noreferrer"><ExternalLink size={12} style={{ color: 'var(--accent-blue)' }} /></a>}</div></td>
-                  <td className="py-2.5 px-3"><span className="text-xs px-2 py-0.5 rounded" style={{ background: p.status === 'published' ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.06)', color: p.status === 'published' ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>{p.status}</span></td>
+                  <td className="py-2.5 px-3 max-w-[350px]"><div className="flex items-center gap-2"><span className="truncate font-medium" style={{ color: 'var(--text-primary)' }}>{p.title}</span>{getUrl(p) && <a href={getUrl(p)!} target="_blank" rel="noopener noreferrer"><ExternalLink size={12} style={{ color: 'var(--accent-blue)' }} /></a>}</div></td>
+                  <td className="py-2.5 px-3"><span className="text-xs px-2 py-0.5 rounded" style={{ background: getStatus(p) === 'published' ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.06)', color: getStatus(p) === 'published' ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>{getStatus(p)}</span></td>
                   <td className="text-right py-2.5 px-3 font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{p.word_count?.toLocaleString() || '—'}</td>
                   <td className="py-2.5 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>{p.published_at ? new Date(p.published_at).toLocaleDateString() : '—'}</td>
                 </tr>
