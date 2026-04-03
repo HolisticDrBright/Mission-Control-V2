@@ -31,17 +31,25 @@ interface KW {
 export default function HolisticDrBrightSEOPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [keywords, setKeywords] = useState<KW[]>([])
+  const [googleData, setGoogleData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState<'posts' | 'keywords'>('posts')
+  const [view, setView] = useState<'posts' | 'keywords' | 'google'>('google')
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/seo?domain=holisticdrbright.com')
-      if (res.ok) {
-        const json = await res.json()
+      const [seoRes, googleRes] = await Promise.all([
+        fetch('/api/seo?domain=holisticdrbright.com'),
+        fetch('/api/seo/google-console?site=holisticdrbright.com')
+      ])
+      if (seoRes.ok) {
+        const json = await seoRes.json()
         setPosts(Array.isArray(json.data?.blog_posts) ? json.data.blog_posts : [])
         setKeywords(Array.isArray(json.data?.keywords) ? json.data.keywords : [])
+      }
+      if (googleRes.ok) {
+        const googleJson = await googleRes.json()
+        setGoogleData(googleJson)
       }
     } catch { /* silent */ }
     finally { setLoading(false) }
@@ -74,12 +82,58 @@ export default function HolisticDrBrightSEOPage() {
 
       {/* Toggle */}
       <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ background: 'rgba(255,255,255,0.04)' }}>
+        <button className="px-4 py-1.5 rounded-lg text-sm" style={{ background: view === 'google' ? 'var(--glass-bg-hover)' : 'transparent', color: view === 'google' ? 'var(--text-primary)' : 'var(--text-muted)' }} onClick={() => setView('google')}>📊 Google Data</button>
         <button className="px-4 py-1.5 rounded-lg text-sm" style={{ background: view === 'posts' ? 'var(--glass-bg-hover)' : 'transparent', color: view === 'posts' ? 'var(--text-primary)' : 'var(--text-muted)' }} onClick={() => setView('posts')}>Posts ({posts.length})</button>
         <button className="px-4 py-1.5 rounded-lg text-sm" style={{ background: view === 'keywords' ? 'var(--glass-bg-hover)' : 'transparent', color: view === 'keywords' ? 'var(--text-primary)' : 'var(--text-muted)' }} onClick={() => setView('keywords')}>Keywords ({keywords.length})</button>
       </div>
 
+      {/* Google Data View */}
+      {view === 'google' && googleData && (
+        <div className="glass-card p-5">
+          <h3 className="text-base font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>📈 HolisticDrBright.com Rankings</h3>
+          <div className="grid grid-cols-5 gap-3 mb-6">
+            {[
+              { label: 'SEO Grade', value: googleData.grade, sub: googleData.gradeLabel, color: '#10b981', big: true },
+              { label: 'Clicks', value: googleData.summary?.totalClicks?.toLocaleString(), color: '#3b82f6' },
+              { label: 'Impressions', value: googleData.summary?.totalImpressions?.toLocaleString(), color: '#f59e0b' },
+              { label: 'CTR', value: `${googleData.summary?.avgCTR?.toFixed(2)}%`, color: '#8b5cf6' },
+              { label: 'Avg Pos', value: googleData.summary?.avgPosition?.toFixed(1), color: '#06b6d4' },
+            ].map((s, i) => (
+              <div key={i} className="glass-card p-4" style={{ borderLeft: `3px solid ${s.color}` }}>
+                <p className="text-xs uppercase" style={{ color: 'var(--text-muted)' }}>{s.label}</p>
+                <p className="text-2xl font-semibold mt-1" style={{ color: s.color }}>{s.value}</p>
+                {s.sub && <p className="text-xs mt-1" style={{ color: '#aaa' }}>{s.sub}</p>}
+              </div>
+            ))}
+          </div>
+          <div className="mb-6">
+            <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Top Keywords</p>
+            <table className="w-full text-xs">
+              <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <th className="text-left py-2 px-2" style={{ color: 'var(--text-muted)' }}>Keyword</th>
+                <th className="text-right py-2 px-2" style={{ color: 'var(--text-muted)' }}>Clicks</th>
+                <th className="text-right py-2 px-2" style={{ color: 'var(--text-muted)' }}>Imp.</th>
+                <th className="text-right py-2 px-2" style={{ color: 'var(--text-muted)' }}>CTR</th>
+                <th className="text-right py-2 px-2" style={{ color: 'var(--text-muted)' }}>Pos</th>
+              </tr></thead>
+              <tbody>
+                {(googleData.topQueries || []).slice(0, 15).map((q: any, i: number) => (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td className="py-2 px-2" style={{ color: 'var(--text-primary)' }}>{q.keyword}</td>
+                    <td className="text-right py-2 px-2" style={{ color: '#10b981' }}>{q.clicks}</td>
+                    <td className="text-right py-2 px-2" style={{ color: '#3b82f6' }}>{q.impressions}</td>
+                    <td className="text-right py-2 px-2" style={{ color: '#f59e0b' }}>{(q.ctr * 100).toFixed(1)}%</td>
+                    <td className="text-right py-2 px-2" style={{ color: '#8b5cf6' }}>#{Math.round(q.position)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Posts */}
-      {view === 'posts' && (
+      {view === 'posts' && googleData && (
         <div className="glass-card p-5">
           <table className="w-full text-sm">
             <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
