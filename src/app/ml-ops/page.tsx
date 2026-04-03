@@ -169,6 +169,8 @@ export default function MLOpsPage() {
           </div>
         </GlassCard>
       </div>
+        </>
+      )}
     </div>
   )
 }
