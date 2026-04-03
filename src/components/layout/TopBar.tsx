@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { usePathname } from "next/navigation"
-import { Bell, Settings, Search, Check, MessageCircle, Users, UserPlus, FileText, AlertTriangle, Info, X } from "lucide-react"
+import { Bell, Settings, Search, Check, MessageCircle, Users, UserPlus, FileText, AlertTriangle, Info, X, Menu } from "lucide-react"
 import { useStore } from "@/store"
 import { createClient } from "@/lib/supabase/client"
 
@@ -78,7 +78,7 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`
 }
 
-export function TopBar() {
+export function TopBar({ onMenuToggle }: { onMenuToggle?: () => void } = {}) {
   const pathname = usePathname()
   const toggleCommandPalette = useStore((s) => s.toggleCommandPalette)
 
@@ -178,13 +178,21 @@ export function TopBar() {
         WebkitBackdropFilter: "blur(20px) saturate(180%)",
       }}
     >
-      <h1 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
+      <div className="flex items-center gap-3">
+        {/* Hamburger — mobile only */}
+        {onMenuToggle && (
+          <button className="md:hidden glass-button p-2" onClick={onMenuToggle} aria-label="Menu">
+            <Menu className="w-5 h-5" style={{ color: "var(--text-secondary)" }} />
+          </button>
+        )}
+        <h1 className="text-sm md:text-base font-semibold truncate" style={{ color: "var(--text-primary)" }}>
         {title}
       </h1>
+      </div>
 
       <button
         onClick={toggleCommandPalette}
-        className="glass-input flex items-center gap-2 w-72 h-8 px-3 text-sm cursor-pointer"
+        className="glass-input hidden md:flex items-center gap-2 w-72 h-8 px-3 text-sm cursor-pointer"
         style={{ color: "var(--text-muted)" }}
       >
         <Search className="w-3.5 h-3.5" />
