@@ -1,208 +1,162 @@
 'use client'
 
-import { useState } from 'react'
-import { useAgents, useTasks } from '@/lib/hooks/use-data'
-import {
-  Bot,
-  Plus,
-  Download,
-  Cpu,
-  DollarSign,
-  Activity,
-  Clock,
-  BookOpen,
-  Wifi,
-  WifiOff,
-} from 'lucide-react'
-import { useStore } from '@/store'
-import { useOpenClawGateway } from '@/lib/hooks/use-openclaw'
-import GlassCard from '@/components/ui/GlassCard'
-import StatusPill from '@/components/ui/StatusPill'
-import AgentAvatar from '@/components/ui/AgentAvatar'
-import CostBadge from '@/components/ui/CostBadge'
+import { useState, useEffect } from 'react'
+import { Bot, TrendingUp, DollarSign, Zap } from 'lucide-react'
 
-const ROLE_COLORS: Record<string, string> = {
-  developer: 'var(--accent-blue)',
-  researcher: 'var(--accent-purple)',
-  marketer: 'var(--accent-rose)',
-  analyst: 'var(--accent-cyan)',
-  content: 'var(--accent-emerald)',
-  va: 'var(--accent-amber)',
-  custom: 'var(--text-secondary)',
+interface Agent {
+  id: string
+  name: string
+  role: string
+  status: 'running' | 'idle' | 'paused'
+  total_runs: number
+  total_cost_usd: number
+  avg_outcome_score: number
+  capabilities: string[]
 }
 
 export default function AgentsPage() {
-  useAgents()
-  useTasks()
-  const agents = useStore((s) => s.agents)
-  const tasks = useStore((s) => s.tasks)
-  const [showSkills, setShowSkills] = useState(false)
-  const { isConnected } = useOpenClawGateway()
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/agents')
+      .then(r => r.json())
+      .then(data => {
+        setAgents(data.data || [])
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error('Failed to fetch agents:', err)
+        setLoading(false)
+      })
+  }, [])
+
+  const statusColor = (status: string) => {
+    switch (status) {
+      case 'running': return '#10b981'
+      case 'idle': return '#6b7280'
+      case 'paused': return '#f59e0b'
+      default: return '#888'
+    }
+  }
+
+  const roleColor = (role: string) => {
+    switch (role) {
+      case 'analyst': return '#3b82f6'
+      case 'content': return '#10b981'
+      case 'custom': return '#8b5cf6'
+      default: return '#f59e0b'
+    }
+  }
+
+  if (loading) {
+    return (
+      <div style={{ padding: 24, color: '#eee' }}>
+        <h1 style={{ fontSize: 20, fontWeight: 600 }}>Agent Fleet</h1>
+        <p style={{ color: '#888', marginTop: 8 }}>Loading agents...</p>
+      </div>
+    )
+  }
+
+  const running = agents.filter(a => a.status === 'running').length
+  const totalCost = agents.reduce((sum, a) => sum + a.total_cost_usd, 0)
+  const avgScore = agents.length > 0 ? (agents.reduce((sum, a) => sum + a.avg_outcome_score, 0) / agents.length).toFixed(0) : '0'
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
+    <div style={{ padding: 24, color: '#eee', maxWidth: 1400, margin: '0 auto' }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Agent Fleet
-          </h2>
-          <span
-            className="text-xs px-2 py-0.5 rounded-md"
-            style={{
-              background: 'rgba(16,185,129,0.15)',
-              color: 'var(--accent-emerald)',
-            }}
-          >
-            {agents.filter((a) => a.status === 'running').length} active
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            className="glass-button text-sm flex items-center gap-2"
-            onClick={() => setShowSkills(!showSkills)}
-          >
-            <BookOpen size={14} />
-            Skills Library
-          </button>
-          <button className="glass-button text-sm flex items-center gap-2">
-            {isConnected ? (
-              <Wifi size={14} style={{ color: 'var(--accent-emerald)' }} />
-            ) : (
-              <WifiOff size={14} style={{ color: 'var(--text-muted)' }} />
-            )}
-            <Download size={14} />
-            Import from OpenClaw
-            {isConnected && (
-              <span
-                className="w-1.5 h-1.5 rounded-full"
-                style={{ background: 'var(--accent-emerald)' }}
-              />
-            )}
-          </button>
-          <button className="glass-button-primary glass-button text-sm flex items-center gap-2">
-            <Plus size={14} />
-            New Agent
-          </button>
-        </div>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>Agent Fleet</h1>
+        <p style={{ fontSize: 12, color: '#888', margin: '8px 0 0' }}>{agents.length} total agents · {running} active</p>
       </div>
 
-      <div className="flex gap-6">
-        {/* Agent Grid */}
-        <div className="flex-1">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {agents.length === 0 ? (
-              <GlassCard className="p-8 col-span-full flex flex-col items-center justify-center">
-                <Bot size={40} style={{ color: 'var(--text-muted)' }} />
-                <p className="text-sm mt-3" style={{ color: 'var(--text-muted)' }}>
-                  No agents yet. Create one or import from OpenClaw.
-                </p>
-              </GlassCard>
-            ) : (
-              agents.map((agent) => {
-                const currentTask = tasks.find((t) => t.id === agent.current_task_id)
-                const roleColor = ROLE_COLORS[agent.role] || ROLE_COLORS.custom
-
-                return (
-                  <GlassCard key={agent.id} className="p-5 cursor-pointer">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <AgentAvatar
-                          name={agent.name}
-                          role={agent.role}
-                          status={agent.status}
-                          size="md"
-                        />
-                        <div>
-                          <h3
-                            className="text-sm font-semibold"
-                            style={{ color: 'var(--text-primary)' }}
-                          >
-                            {agent.name}
-                          </h3>
-                          <span
-                            className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
-                            style={{ background: `${roleColor}22`, color: roleColor }}
-                          >
-                            {agent.role}
-                          </span>
-                        </div>
-                      </div>
-                      <StatusPill status={agent.status} size="sm" />
-                    </div>
-
-                    {/* Model */}
-                    <div className="flex items-center gap-2 mb-3">
-                      <Cpu size={12} style={{ color: 'var(--text-muted)' }} />
-                      <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
-                        {agent.model}
-                      </span>
-                    </div>
-
-                    {/* Current Task */}
-                    {currentTask && (
-                      <div
-                        className="p-2 rounded-lg mb-3 text-xs"
-                        style={{
-                          background: 'rgba(16,185,129,0.08)',
-                          border: '1px solid rgba(16,185,129,0.15)',
-                          color: 'var(--accent-emerald)',
-                        }}
-                      >
-                        Working on: {currentTask.title}
-                      </div>
-                    )}
-
-                    {/* Stats */}
-                    <div className="flex items-center justify-between text-xs" style={{ color: 'var(--text-muted)' }}>
-                      <div className="flex items-center gap-1">
-                        <Activity size={11} />
-                        {agent.total_runs} runs
-                      </div>
-                      <CostBadge amount={agent.total_cost_usd || 0} size="sm" />
-                      {agent.avg_outcome_score !== null && agent.avg_outcome_score !== undefined && (
-                        <span>Score: {agent.avg_outcome_score}</span>
-                      )}
-                    </div>
-
-                    {/* Heartbeat */}
-                    {agent.heartbeat_at && (
-                      <div className="flex items-center gap-1 mt-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                        <Clock size={10} />
-                        Last heartbeat:{' '}
-                        {new Date(agent.heartbeat_at).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </div>
-                    )}
-                  </GlassCard>
-                )
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Skills Library Panel */}
-        {showSkills && (
-          <div className="w-80 shrink-0">
-            <GlassCard className="p-5 sticky top-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-                  Skills Library
-                </h3>
-                <button className="glass-button text-xs">
-                  <Plus size={12} />
-                </button>
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+        {[
+          { icon: Bot, label: 'Total Agents', value: agents.length, color: '#3b82f6' },
+          { icon: Zap, label: 'Active', value: running, color: '#10b981' },
+          { icon: DollarSign, label: 'Total Cost', value: `$${totalCost.toFixed(2)}`, color: '#f59e0b' },
+          { icon: TrendingUp, label: 'Avg Score', value: avgScore, color: '#8b5cf6' },
+        ].map((stat, i) => {
+          const Icon = stat.icon
+          return (
+            <div key={i} style={{ padding: 16, background: 'rgba(255,255,255,0.05)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <Icon size={16} color={stat.color} />
+                <span style={{ fontSize: 11, color: '#888', textTransform: 'uppercase' }}>{stat.label}</span>
               </div>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Reusable knowledge modules for agents. Create skills and assign them to
-                multiple agents.
-              </p>
-            </GlassCard>
-          </div>
-        )}
+              <p style={{ fontSize: 24, fontWeight: 600, margin: 0, color: '#eee' }}>{stat.value}</p>
+            </div>
+          )
+        })}
       </div>
+
+      {/* Agents Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 16 }}>
+        {agents.map(agent => (
+          <div key={agent.id} style={{ padding: 16, background: 'rgba(255,255,255,0.05)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 12 }}>
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 600, margin: 0, color: '#eee' }}>{agent.name}</p>
+                <p style={{ fontSize: 11, color: '#888', margin: '4px 0 0' }}>
+                  <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, background: `${roleColor(agent.role)}22`, color: roleColor(agent.role), fontSize: 10, textTransform: 'uppercase' }}>
+                    {agent.role}
+                  </span>
+                </p>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ fontSize: 11, fontWeight: 600, margin: 0, color: statusColor(agent.status), textTransform: 'uppercase' }}>
+                  {agent.status}
+                </p>
+              </div>
+            </div>
+
+            {/* Metrics */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+              <div>
+                <p style={{ fontSize: 10, color: '#888', margin: '0 0 2px', textTransform: 'uppercase' }}>Runs</p>
+                <p style={{ fontSize: 16, fontWeight: 600, margin: 0, color: '#eee' }}>{agent.total_runs}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 10, color: '#888', margin: '0 0 2px', textTransform: 'uppercase' }}>Cost</p>
+                <p style={{ fontSize: 16, fontWeight: 600, margin: 0, color: '#eee' }}>${agent.total_cost_usd.toFixed(2)}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 10, color: '#888', margin: '0 0 2px', textTransform: 'uppercase' }}>Score</p>
+                <p style={{ fontSize: 16, fontWeight: 600, margin: 0, color: '#10b981' }}>{agent.avg_outcome_score}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 10, color: '#888', margin: '0 0 2px', textTransform: 'uppercase' }}>Type</p>
+                <p style={{ fontSize: 16, fontWeight: 600, margin: 0, color: '#eee' }}>{agent.role}</p>
+              </div>
+            </div>
+
+            {/* Capabilities */}
+            <div>
+              <p style={{ fontSize: 10, color: '#888', margin: '0 0 6px', textTransform: 'uppercase' }}>Capabilities</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {agent.capabilities.slice(0, 3).map((cap, i) => (
+                  <span key={i} style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.08)', color: '#aaa' }}>
+                    {cap}
+                  </span>
+                ))}
+                {agent.capabilities.length > 3 && (
+                  <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.08)', color: '#666' }}>
+                    +{agent.capabilities.length - 3}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {agents.length === 0 && (
+        <div style={{ textAlign: 'center', padding: 48, color: '#888' }}>
+          <p>No agents found</p>
+        </div>
+      )}
     </div>
   )
 }

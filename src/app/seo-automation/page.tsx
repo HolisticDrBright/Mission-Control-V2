@@ -5,22 +5,23 @@ import { useState, useEffect } from 'react'
 export default function SEOAutomationPage() {
   const [posts, setPosts] = useState<Array<Record<string, unknown>>>([])
   const [keywords, setKeywords] = useState<Array<Record<string, unknown>>>([])
+  const [googleData, setGoogleData] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState<'posts' | 'keywords'>('posts')
+  const [view, setView] = useState<'posts' | 'keywords' | 'google'>('google')
 
   useEffect(() => {
-    fetch('/api/seo')
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json()
-      })
-      .then(json => {
-        setPosts(Array.isArray(json?.data?.blog_posts) ? json.data.blog_posts : [])
-        setKeywords(Array.isArray(json?.data?.keywords) ? json.data.keywords : [])
-      })
-      .catch(err => setError(String(err)))
-      .finally(() => setLoading(false))
+    Promise.all([
+      fetch('/api/seo').then(r => r.json()),
+      fetch('/api/seo/google-console').then(r => r.json())
+    ])
+    .then(([seoData, googleConsoleData]) => {
+      setPosts(Array.isArray(seoData?.data?.blog_posts) ? seoData.data.blog_posts : [])
+      setKeywords(Array.isArray(seoData?.data?.keywords) ? seoData.data.keywords : [])
+      setGoogleData(googleConsoleData)
+    })
+    .catch(err => setError(String(err)))
+    .finally(() => setLoading(false))
   }, [])
 
   const getUrl = (p: Record<string, unknown>) => (p.url as string) || (p.published_url as string) || null
