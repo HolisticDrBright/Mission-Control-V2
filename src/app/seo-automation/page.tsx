@@ -5,23 +5,22 @@ import { useState, useEffect } from 'react'
 export default function SEOAutomationPage() {
   const [posts, setPosts] = useState<Array<Record<string, unknown>>>([])
   const [keywords, setKeywords] = useState<Array<Record<string, unknown>>>([])
-  const [googleData, setGoogleData] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState<'posts' | 'keywords' | 'google'>('posts')
+  const [view, setView] = useState<'posts' | 'keywords'>('posts')
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/seo').then(r => r.json()),
-      fetch('/api/seo/google-console').then(r => r.json())
-    ])
-    .then(([seoData, googleConsoleData]) => {
-      setPosts(Array.isArray(seoData?.data?.blog_posts) ? seoData.data.blog_posts : [])
-      setKeywords(Array.isArray(seoData?.data?.keywords) ? seoData.data.keywords : [])
-      setGoogleData(googleConsoleData)
-    })
-    .catch(err => setError(String(err)))
-    .finally(() => setLoading(false))
+    fetch('/api/seo')
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json()
+      })
+      .then(json => {
+        setPosts(Array.isArray(json?.data?.blog_posts) ? json.data.blog_posts : [])
+        setKeywords(Array.isArray(json?.data?.keywords) ? json.data.keywords : [])
+      })
+      .catch(err => setError(String(err)))
+      .finally(() => setLoading(false))
   }, [])
 
   const getUrl = (p: Record<string, unknown>) => (p.url as string) || (p.published_url as string) || null
@@ -74,87 +73,12 @@ export default function SEOAutomationPage() {
 
       {/* View toggle */}
       <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 12, background: 'rgba(255,255,255,0.04)', width: 'fit-content', marginBottom: 20 }}>
-        <button style={{ padding: '6px 16px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', background: view === 'google' ? 'rgba(255,255,255,0.1)' : 'transparent', color: view === 'google' ? '#eee' : '#888' }} onClick={() => setView('google')}>📊 Google Data</button>
         <button style={{ padding: '6px 16px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', background: view === 'posts' ? 'rgba(255,255,255,0.1)' : 'transparent', color: view === 'posts' ? '#eee' : '#888' }} onClick={() => setView('posts')}>Articles ({posts.length})</button>
         <button style={{ padding: '6px 16px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', background: view === 'keywords' ? 'rgba(255,255,255,0.1)' : 'transparent', color: view === 'keywords' ? '#eee' : '#888' }} onClick={() => setView('keywords')}>Keywords ({keywords.length})</button>
       </div>
 
-      {/* Google Search Console Data */}
-      {view === 'google' && googleData && (
-        <div className="glass-card" style={{ padding: 20 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 16px', color: '#eee' }}>📈 Google Search Console</h3>
-          
-          {/* Summary Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
-            {[
-              { label: 'Total Clicks', value: googleData.summary?.totalClicks?.toLocaleString() || 0, color: '#10b981' },
-              { label: 'Impressions', value: googleData.summary?.totalImpressions?.toLocaleString() || 0, color: '#3b82f6' },
-              { label: 'Avg CTR', value: `${googleData.summary?.avgCTR?.toFixed(2)}%` || '0%', color: '#f59e0b' },
-              { label: 'Avg Position', value: googleData.summary?.avgPosition?.toFixed(1) || '0', color: '#8b5cf6' },
-            ].map(s => (
-              <div key={s.label} className="glass-card" style={{ padding: 16, borderLeft: `3px solid ${s.color}` }}>
-                <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#888', margin: '0 0 4px' }}>{s.label}</p>
-                <p style={{ fontSize: 20, fontWeight: 600, margin: 0, color: '#eee' }}>{s.value}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Top Keywords */}
-          <div style={{ marginBottom: 24 }}>
-            <h4 style={{ fontSize: 13, fontWeight: 600, margin: '0 0 12px', color: '#eee' }}>Top Keywords ({googleData.topQueries?.length || 0})</h4>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                  <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>Keyword</th>
-                  <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>Clicks</th>
-                  <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>Impressions</th>
-                  <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>CTR</th>
-                  <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>Position</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(googleData.topQueries || []).slice(0, 15).map((q: any, i: number) => (
-                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '8px 12px', color: '#eee' }}>{q.keyword}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 12px', color: '#10b981', fontWeight: 500 }}>{q.clicks}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 12px', color: '#3b82f6' }}>{q.impressions}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 12px', color: '#f59e0b' }}>{(q.ctr * 100).toFixed(2)}%</td>
-                    <td style={{ textAlign: 'right', padding: '8px 12px', color: '#8b5cf6', fontWeight: 500 }}>#{Math.round(q.position)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Top Pages */}
-          <div>
-            <h4 style={{ fontSize: 13, fontWeight: 600, margin: '0 0 12px', color: '#eee' }}>Top Pages ({googleData.topPages?.length || 0})</h4>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                  <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>URL</th>
-                  <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>Clicks</th>
-                  <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>Impressions</th>
-                  <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 10, color: '#888', fontWeight: 500 }}>CTR</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(googleData.topPages || []).slice(0, 10).map((p: any, i: number) => (
-                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '8px 12px', color: '#eee', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.url.replace('https://', '').replace('http://', '')}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 12px', color: '#10b981', fontWeight: 500 }}>{p.clicks}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 12px', color: '#3b82f6' }}>{p.impressions}</td>
-                    <td style={{ textAlign: 'right', padding: '8px 12px', color: '#f59e0b' }}>{(p.ctr * 100).toFixed(2)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Articles table - only show if not viewing google data */}
-      {view === 'posts' && googleData && (
+      {/* Articles table */}
+      {view === 'posts' && (
         <div className="glass-card" style={{ padding: 20 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
