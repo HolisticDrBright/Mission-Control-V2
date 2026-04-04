@@ -1,5 +1,11 @@
 'use client'
 
+// Force dynamic rendering so this page is not statically pre-rendered.
+// Without this, Next.js may cache the initial HTML and delay the useEffect
+// fetch until the browser hydrates — causing stale status to flash.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 import { useEffect, useState, useMemo } from 'react'
 import { CheckCircle, AlertCircle, Settings } from 'lucide-react'
 import GlassCard from '@/components/ui/GlassCard'
@@ -93,18 +99,24 @@ export default function IntegrationsPage() {
 
   // Fetch real status from /api/integrations/status on mount
   useEffect(() => {
+    console.log('[integrations] fetching /api/integrations/status...')
     let cancelled = false
-    fetch('/api/integrations/status')
+    fetch('/api/integrations/status', { cache: 'no-store' })
       .then((r) => r.json())
       .then((json) => {
         if (cancelled) return
+        console.log('[integrations] got status:', json)
         if (json.error) {
           setFetchError(json.error)
         } else {
           setStatusData(json)
         }
       })
-      .catch((e) => !cancelled && setFetchError(e.message))
+      .catch((e) => {
+        if (cancelled) return
+        console.error('[integrations] fetch failed:', e)
+        setFetchError(e.message)
+      })
       .finally(() => !cancelled && setLoading(false))
     return () => {
       cancelled = true
