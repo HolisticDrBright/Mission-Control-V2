@@ -161,3 +161,51 @@ body {
   font-family: var(--font-sans, system-ui);
   min-height: 100vh;
 }
+
+/* ================================================================
+   MOBILE RESPONSIVE
+   ================================================================ */
+
+@media (max-width: 768px) {
+  .glass-card {
+    border-radius: 12px;
+    padding: 12px;
+  }
+
+  .glass-sidebar {
+    position: fixed;
+    left: -280px;
+    top: 0;
+    bottom: 0;
+    width: 260px;
+    z-index: 50;
+    transition: left 0.3s ease;
+  }
+
+  .glass-sidebar.mobile-open {
+    left: 0;
+  }
+
+  .mobile-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 40;
+  }
+}
+
+@media (max-width: 640px) {
+  .glass-card {
+    padding: 10px;
+  }
+
+  .glass-button {
+    padding: 0.375rem 0.75rem;
+    font-size: 13px;
+  }
+
+  .glass-input {
+    padding: 0.375rem 0.625rem;
+    font-size: 14px;
+  }
+}
