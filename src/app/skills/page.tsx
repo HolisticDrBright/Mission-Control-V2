@@ -1,15 +1,16 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Globe, Code, FolderOpen, Database, Plug, Monitor, GitBranch, Brain,
   Cpu, PenTool, CheckCircle, AlertTriangle, XCircle, Search, Zap,
   Mail, Video, RefreshCw, BarChart3, ShoppingBag, CreditCard,
   Mic, Image, UserCheck, Send, BookOpen, Link2, ArrowUpCircle,
-  Megaphone, Target,
+  Megaphone, Target, ChevronDown, Package,
 } from 'lucide-react'
 import GlassCard from '@/components/ui/GlassCard'
 import { Breadcrumbs } from '@/components/ui/FormComponents'
+import { CATEGORY_COLORS, type SkillCategory } from '@/lib/openclaw/skill-catalog'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -135,6 +136,198 @@ function templateStatus(requires: string[]): IntegrationStatus {
 }
 
 // ---------------------------------------------------------------------------
+// OpenClaw Skills section
+// ---------------------------------------------------------------------------
+
+interface OpenClawSkill {
+  name: string
+  category: SkillCategory
+  description: string
+  source: 'filesystem' | 'catalog'
+}
+
+interface OpenClawSkillsResponse {
+  total: number
+  source: 'filesystem' | 'catalog'
+  skillsDir: string | null
+  byCategory: Record<string, number>
+  skills: OpenClawSkill[]
+}
+
+function OpenClawSkillsSection({ searchQuery }: { searchQuery: string }) {
+  const [data, setData] = useState<OpenClawSkillsResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetch('/api/openclaw/skills')
+      .then((r) => r.json())
+      .then((json) => {
+        if (cancelled) return
+        if (json.error) setError(json.error)
+        else setData(json)
+      })
+      .catch((e) => !cancelled && setError(e.message))
+      .finally(() => !cancelled && setLoading(false))
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const q = searchQuery.toLowerCase()
+
+  const filtered = useMemo(() => {
+    if (!data) return []
+    if (!q) return data.skills
+    return data.skills.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.description.toLowerCase().includes(q) ||
+        s.category.toLowerCase().includes(q),
+    )
+  }, [data, q])
+
+  const grouped = useMemo(() => {
+    const g = new Map<SkillCategory, OpenClawSkill[]>()
+    for (const s of filtered) {
+      const list = g.get(s.category) ?? []
+      list.push(s)
+      g.set(s.category, list)
+    }
+    return Array.from(g.entries()).sort(([a], [b]) => a.localeCompare(b))
+  }, [filtered])
+
+  return (
+    <section aria-labelledby="openclaw-skills-heading">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h2
+          id="openclaw-skills-heading"
+          className="text-sm font-semibold uppercase tracking-wider"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          OpenClaw Skills
+        </h2>
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
+            style={{
+              background: 'rgba(139,92,246,0.15)',
+              color: '#a78bfa',
+              border: '1px solid rgba(139,92,246,0.3)',
+            }}
+          >
+            <Package size={12} />
+            {data ? `${data.total} Skills Available` : loading ? 'Loading…' : '0 Skills'}
+          </span>
+          {data && (
+            <span
+              className="text-[10px] px-2 py-0.5 rounded"
+              style={{
+                color: 'var(--text-muted)',
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+              }}
+              title={data.skillsDir ?? 'Using built-in catalog fallback'}
+            >
+              {data.source === 'filesystem' ? 'from filesystem' : 'from catalog'}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <p className="text-xs mb-3" style={{ color: '#f43f5e' }}>
+          Failed to load skills: {error}
+        </p>
+      )}
+
+      {loading && !data && (
+        <p className="text-sm py-6 text-center" style={{ color: 'var(--text-muted)' }}>
+          Loading OpenClaw skills…
+        </p>
+      )}
+
+      {data && grouped.length === 0 && (
+        <p className="text-sm py-6 text-center" style={{ color: 'var(--text-muted)' }}>
+          No skills match your search.
+        </p>
+      )}
+
+      <div className="space-y-6">
+        {grouped.map(([category, skills]) => {
+          const color = CATEGORY_COLORS[category] ?? '#64748b'
+          return (
+            <div key={category}>
+              <div className="flex items-center gap-2 mb-2">
+                <span
+                  className="inline-block w-2 h-2 rounded-full"
+                  style={{ background: color }}
+                />
+                <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>
+                  {category}
+                </h3>
+                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  {skills.length}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                {skills.map((skill) => {
+                  const isOpen = expanded === skill.name
+                  return (
+                    <button
+                      key={skill.name}
+                      type="button"
+                      onClick={() => setExpanded(isOpen ? null : skill.name)}
+                      className="text-left p-2.5 rounded-lg transition-all"
+                      style={{
+                        background: isOpen
+                          ? `color-mix(in srgb, ${color} 14%, transparent)`
+                          : 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${isOpen ? color : 'rgba(255,255,255,0.08)'}`,
+                        gridColumn: isOpen ? 'span 2' : undefined,
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span
+                          className="text-xs font-medium truncate"
+                          style={{ color: 'var(--text-primary)' }}
+                        >
+                          {skill.name}
+                        </span>
+                        <ChevronDown
+                          size={12}
+                          style={{
+                            color,
+                            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.2s',
+                            flexShrink: 0,
+                          }}
+                        />
+                      </div>
+                      {isOpen && skill.description && (
+                        <p
+                          className="text-[11px] mt-1.5 leading-snug"
+                          style={{ color: 'var(--text-muted)' }}
+                        >
+                          {skill.description}
+                        </p>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -235,7 +428,10 @@ export default function SkillsPage() {
         </div>
       </section>
 
-      {/* Section C: Automation Templates */}
+      {/* Section C: OpenClaw Skills (dynamic, filesystem-backed) */}
+      <OpenClawSkillsSection searchQuery={search} />
+
+      {/* Section D: Automation Templates */}
       <section aria-labelledby="templates-heading">
         <h2 id="templates-heading" className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--text-secondary)' }}>
           Automation Templates
